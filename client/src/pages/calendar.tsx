@@ -14,7 +14,6 @@ import type { Event, Task, Attendance } from "@shared/schema";
 export default function Calendar() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [view, setView] = useState<"personal" | "team">("personal");
-  const [viewMode, setViewMode] = useState<"month" | "week" | "day">("month");
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const { data: events, isLoading: eventsLoading } = useQuery<Event[]>({
@@ -32,7 +31,7 @@ export default function Calendar() {
   const isLoading = eventsLoading || tasksLoading || attendanceLoading;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50/30 p-4 md:p-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -40,69 +39,58 @@ export default function Calendar() {
       >
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
           <div className="flex items-center gap-4 w-full md:w-auto">
-            <h1 className="text-3xl font-bold text-gray-900">
+            <motion.h1 
+              key={format(currentMonth, "MMMM")}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent"
+            >
               {format(currentMonth, "MMMM")}
-              <span className="text-gray-500 ml-2">{format(currentMonth, "yyyy")}</span>
-            </h1>
+              <span className="text-gray-400 ml-2 text-3xl">{format(currentMonth, "yyyy")}</span>
+            </motion.h1>
           </div>
 
           <div className="flex items-center gap-4 w-full md:w-auto">
             <div className="relative flex-1 md:w-80">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Search events..."
-                className="pl-10 bg-white/50 backdrop-blur-sm"
+                placeholder="予定を検索..."
+                className="pl-10 bg-white/80 backdrop-blur-sm border-blue-100 focus:border-blue-300 transition-colors"
               />
             </div>
 
-            <div className="flex items-center gap-2 bg-white/50 backdrop-blur-sm rounded-lg p-1">
-              <Button
-                variant={viewMode === "month" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setViewMode("month")}
-              >
-                Month
-              </Button>
-              <Button
-                variant={viewMode === "week" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setViewMode("week")}
-              >
-                Week
-              </Button>
-              <Button
-                variant={viewMode === "day" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setViewMode("day")}
-              >
-                Day
-              </Button>
-            </div>
-
-            <Button onClick={() => setSelectedDate(new Date())} className="gap-2">
+            <Button 
+              onClick={() => setSelectedDate(new Date())} 
+              className="gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-300 shadow-lg shadow-blue-500/20"
+            >
               <Plus className="h-4 w-4" />
-              Add Event
+              予定を追加
             </Button>
           </div>
         </div>
 
-        <Card className="overflow-hidden border border-blue-100/50 shadow-xl shadow-blue-100/20 bg-white/50 backdrop-blur-sm">
-          <CalendarHeader
-            currentMonth={currentMonth}
-            onMonthChange={setCurrentMonth}
-            view={view}
-            onViewChange={setView}
-          />
-          <CalendarGrid
-            view={view}
-            currentMonth={currentMonth}
-            events={events || []}
-            tasks={tasks || []}
-            attendance={attendance || []}
-            isLoading={isLoading}
-            onDateSelect={setSelectedDate}
-          />
-        </Card>
+        <motion.div
+          layout
+          className="rounded-xl overflow-hidden shadow-2xl shadow-blue-200/50 backdrop-blur-sm"
+        >
+          <Card className="overflow-hidden border-none bg-white/80">
+            <CalendarHeader
+              currentMonth={currentMonth}
+              onMonthChange={setCurrentMonth}
+              view={view}
+              onViewChange={setView}
+            />
+            <CalendarGrid
+              view={view}
+              currentMonth={currentMonth}
+              events={events || []}
+              tasks={tasks || []}
+              attendance={attendance || []}
+              isLoading={isLoading}
+              onDateSelect={setSelectedDate}
+            />
+          </Card>
+        </motion.div>
 
         <AnimatePresence>
           {selectedDate && (
