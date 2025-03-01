@@ -1,636 +1,654 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { motion } from "framer-motion";
-import { format } from "date-fns";
-import { 
-  Users, 
-  FileSpreadsheet, 
-  RefreshCw, 
-  Calendar, 
-  CheckSquare, 
-  Folder, 
-  UserPlus,
-  Search,
-  MoreHorizontal
-} from "lucide-react";
-
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/components/ui/use-toast";
+import { Session, User } from "@supabase/supabase-js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { type User, type Event, type Task } from "@shared/schema";
-import { toast } from "@/components/ui/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { Badge } from "@/components/ui/badge";
 
-// Mock data for development
-const mockUsers: User[] = [
-  {
-    id: 1,
-    googleSub: "google-sub-1",
-    sheetName: "田中",
-    name: "田中 太郎",
-    email: "tanaka@example.com",
-    role: "admin",
-    createdAt: new Date("2023-05-01"),
-    updatedAt: new Date("2023-05-01")
-  },
-  {
-    id: 2,
-    googleSub: "google-sub-2",
-    sheetName: "佐藤",
-    name: "佐藤 花子",
-    email: "sato@example.com",
-    role: "member",
-    createdAt: new Date("2023-05-02"),
-    updatedAt: new Date("2023-05-02")
-  },
-  {
-    id: 3,
-    googleSub: "google-sub-3",
-    sheetName: "鈴木",
-    name: "鈴木 一郎",
-    email: "suzuki@example.com",
-    role: "member",
-    createdAt: new Date("2023-05-03"),
-    updatedAt: new Date("2023-05-03")
-  },
-  {
-    id: 4,
-    googleSub: "google-sub-4",
-    sheetName: "山田",
-    name: "山田 花子",
-    email: "yamada@example.com",
-    role: "member",
-    createdAt: new Date("2023-05-04"),
-    updatedAt: new Date("2023-05-04")
-  },
-  {
-    id: 5,
-    googleSub: "google-sub-5",
-    sheetName: "高橋",
-    name: "高橋 次郎",
-    email: "takahashi@example.com",
-    role: "member",
-    createdAt: new Date("2023-05-05"),
-    updatedAt: new Date("2023-05-05")
-  },
-];
+// 未承認ユーザーの型定義
+interface PendingUser {
+  id: string;
+  email: string;
+  name: string;
+  created_at: string;
+}
 
-// Mock import history
-const mockImportHistory = [
-  {
-    id: 1,
-    timestamp: new Date("2023-07-01T00:00:05"),
-    status: "success",
-    type: "automatic",
-    eventsCount: 45,
-    details: "Daily automatic import completed successfully"
-  },
-  {
-    id: 2,
-    timestamp: new Date("2023-06-30T15:23:12"),
-    status: "success",
-    type: "manual",
-    eventsCount: 23,
-    details: "Manual import by admin user completed successfully"
-  },
-  {
-    id: 3,
-    timestamp: new Date("2023-06-30T00:00:05"),
-    status: "success",
-    type: "automatic",
-    eventsCount: 45,
-    details: "Daily automatic import completed successfully"
-  },
-  {
-    id: 4,
-    timestamp: new Date("2023-06-29T12:15:45"),
-    status: "error",
-    type: "manual",
-    eventsCount: 0,
-    details: "Failed to connect to Google Sheets API. Check credentials."
-  },
-  {
-    id: 5,
-    timestamp: new Date("2023-06-29T00:00:04"),
-    status: "success",
-    type: "automatic",
-    eventsCount: 45,
-    details: "Daily automatic import completed successfully"
-  },
-];
-
-// Stats
-const mockStats = {
-  users: mockUsers.length,
-  events: 125,
-  tasks: 52,
-  projects: 8
-};
-
-export default function Admin() {
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [isImporting, setIsImporting] = useState(false);
+export default function AdminPage() {
+  const { toast } = useToast();
+  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [googleSub, setGoogleSub] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [sheetName, setSheetName] = useState("");
+  const [role, setRole] = useState("admin");
+  const [usersList, setUsersList] = useState<any[]>([]);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
+  const [loadingPendingUsers, setLoadingPendingUsers] = useState(false);
+  const [isPreRegistration, setIsPreRegistration] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [newUser, setNewUser] = useState({
-    name: "",
-    email: "",
-    sheetName: "",
-    role: "member"
-  });
-  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
 
-  // In a real app, replace with actual API calls
-  const { data: users = mockUsers, isLoading: usersLoading } = useQuery<User[]>({
-    queryKey: ["/api/users"],
-    enabled: false, // Disable for mock data
-  });
-
-  const queryClient = useQueryClient();
-
-  const handleSpreadsheetImport = async () => {
-    // Google Sheetsからのインポート処理
-    try {
-      setIsImporting(true);
-      const response = await fetch('/api/admin/import-sheets', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+  // セッション情報の取得
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session: authSession } }: { data: { session: Session | null } }) => {
+      setSession(authSession);
+      setUser(authSession?.user || null);
       
-      if (!response.ok) {
-        throw new Error('インポートに失敗しました');
+      // 現在のユーザー情報をフォームに設定
+      if (authSession?.user) {
+        setGoogleSub(authSession.user.id);
+        setName(authSession.user.user_metadata?.full_name || "");
+        setEmail(authSession.user.email || "");
+        setSheetName(authSession.user.email?.split('@')[0] || "");
       }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, authSession: Session | null) => {
+      setSession(authSession);
+      setUser(authSession?.user || null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // ユーザー一覧を取得
+  const fetchUsers = async () => {
+    setLoading(true);
+    setFetchError(null);
+    try {
+      const { data, error } = await supabase.from('users').select('*');
       
-      const data = await response.json();
-      console.log("Imported from spreadsheet:", data);
-      
-      // 関連するクエリを無効化して再取得
-      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      
-      toast({
-        title: "インポート成功",
-        description: `${data.count || 0}件のデータをインポートしました。`,
-      });
+      if (error) {
+        console.error('ユーザー一覧取得エラー:', error);
+        // RLSポリシーの無限再帰エラーの場合
+        if (error.code === '42P17' && error.message.includes('infinite recursion')) {
+          setFetchError("RLSポリシーエラー: ユーザーテーブルへのアクセス権限がありません。まずはユーザー登録を行ってください。");
+        } else {
+          setFetchError(`エラー: ${error.message}`);
+        }
+        // エラーがあっても空の配列を設定して表示を継続
+        setUsersList([]);
+      } else {
+        setUsersList(data || []);
+      }
     } catch (error) {
-      console.error("Import error:", error);
-      toast({
-        title: "インポートエラー",
-        description: error instanceof Error ? error.message : "インポート中にエラーが発生しました。",
-        variant: "destructive",
-      });
+      console.error('ユーザー一覧取得エラー:', error);
+      setFetchError("予期せぬエラーが発生しました。");
+      setUsersList([]);
     } finally {
-      setIsImporting(false);
+      setLoading(false);
     }
   };
 
-  const handleUserRoleToggle = (userId: number, isAdmin: boolean) => {
-    // In a real app, make an API call to update user role
-    console.log(`User ${userId} role changed to ${isAdmin ? 'admin' : 'member'}`);
+  // 承認待ちユーザー一覧を取得
+  const fetchPendingUsers = async () => {
+    setLoadingPendingUsers(true);
+    try {
+      // Supabase Authから全ユーザーを取得（管理者のみ実行可能）
+      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+      
+      if (authError) {
+        console.error('Auth ユーザー一覧取得エラー:', authError);
+        toast({
+          title: "エラー",
+          description: "承認待ちユーザーの取得に失敗しました。管理者権限が必要です。",
+          variant: "destructive",
+        });
+        setPendingUsers([]);
+        return;
+      }
+      
+      if (!authUsers || !authUsers.users) {
+        setPendingUsers([]);
+        return;
+      }
+      
+      // 登録済みユーザーのIDを取得
+      const response = await fetch(`${supabase.supabaseUrl}/rest/v1/users`, {
+        method: 'GET',
+        headers: {
+          'apikey': supabase.supabaseKey,
+          'Authorization': `Bearer ${supabase.supabaseKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const registeredUsers = await response.json();
+      const registeredUserIds = registeredUsers.map((u: any) => u.google_sub);
+      
+      // 登録されていないユーザーをフィルタリング
+      const pending = authUsers.users
+        .filter(authUser => !registeredUserIds.includes(authUser.id))
+        .map(authUser => ({
+          id: authUser.id,
+          email: authUser.email || '',
+          name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || '',
+          created_at: authUser.created_at
+        }));
+      
+      setPendingUsers(pending);
+    } catch (error) {
+      console.error('承認待ちユーザー取得エラー:', error);
+      toast({
+        title: "エラー",
+        description: "承認待ちユーザーの取得に失敗しました。",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingPendingUsers(false);
+    }
   };
 
-  const handleAddUser = () => {
-    // In a real app, make an API call to add user
-    console.log('Adding new user:', newUser);
-    setIsAddUserOpen(false);
-    setNewUser({
-      name: "",
-      email: "",
-      sheetName: "",
-      role: "member"
-    });
+  // 初回ロード時にユーザー一覧と承認待ちユーザーを取得
+  useEffect(() => {
+    fetchUsers();
+    fetchPendingUsers();
+  }, []);
+
+  // フォームをリセット
+  const resetForm = () => {
+    if (isPreRegistration) {
+      // 事前登録モードの場合は全てクリア
+      setGoogleSub("");
+      setName("");
+      setEmail("");
+      setSheetName("");
+      setRole("member");
+    } else if (user) {
+      // 通常モードの場合は現在のユーザー情報をセット
+      setGoogleSub(user.id);
+      setName(user.user_metadata?.full_name || "");
+      setEmail(user.email || "");
+      setSheetName(user.email?.split('@')[0] || "");
+      setRole("admin");
+    }
   };
 
-  const filteredUsers = users.filter(user => {
+  // 事前登録モードの切り替え
+  const togglePreRegistration = () => {
+    setIsPreRegistration(!isPreRegistration);
+    resetForm();
+  };
+
+  // ユーザー登録処理
+  const handleRegisterUser = async () => {
+    // 事前登録モードの場合はGoogle Sub IDは不要
+    if (!isPreRegistration && !googleSub) {
+      toast({
+        title: "入力エラー",
+        description: "Google Sub IDが必要です。",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 事前登録モードの場合はシート名のみ必須
+    if (isPreRegistration && !sheetName) {
+      toast({
+        title: "入力エラー",
+        description: "シート名は必須項目です。",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 通常モードの場合は名前、メール、シート名が必須
+    if (!isPreRegistration && (!name || !email || !sheetName)) {
+      toast({
+        title: "入力エラー",
+        description: "名前、メール、シート名は必須項目です。",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      let existingUser = null;
+
+      // メールアドレスが入力されている場合、メールアドレスで既存ユーザーを検索
+      if (email) {
+        const emailResponse = await fetch(`${supabase.supabaseUrl}/rest/v1/users?email=eq.${encodeURIComponent(email)}`, {
+          method: 'GET',
+          headers: {
+            'apikey': supabase.supabaseKey,
+            'Authorization': `Bearer ${supabase.supabaseKey}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const existingUsers = await emailResponse.json();
+        if (existingUsers.length > 0) {
+          existingUser = existingUsers[0];
+        }
+      }
+
+      // メールアドレスで見つからず、シート名が入力されている場合はシート名で検索
+      if (!existingUser && sheetName) {
+        const sheetNameResponse = await fetch(`${supabase.supabaseUrl}/rest/v1/users?sheet_name=eq.${encodeURIComponent(sheetName)}`, {
+          method: 'GET',
+          headers: {
+            'apikey': supabase.supabaseKey,
+            'Authorization': `Bearer ${supabase.supabaseKey}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const existingUsersBySheet = await sheetNameResponse.json();
+        if (existingUsersBySheet.length > 0) {
+          existingUser = existingUsersBySheet[0];
+        }
+      }
+
+      if (existingUser) {
+        // 既存ユーザーの更新
+        const updateData: any = {
+          updated_at: new Date().toISOString()
+        };
+
+        // 各フィールドが入力されている場合のみ更新
+        if (name) updateData.name = name;
+        if (email) updateData.email = email;
+        if (sheetName) updateData.sheet_name = sheetName;
+        if (role) updateData.role = role;
+
+        // 事前登録モードでない場合のみGoogle Sub IDを更新
+        if (!isPreRegistration && googleSub) {
+          updateData.google_sub = googleSub;
+        }
+
+        const updateResponse = await fetch(`${supabase.supabaseUrl}/rest/v1/users?id=eq.${existingUser.id}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': supabase.supabaseKey,
+            'Authorization': `Bearer ${supabase.supabaseKey}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify(updateData)
+        });
+
+        if (!updateResponse.ok) {
+          throw new Error(`更新エラー: ${updateResponse.statusText}`);
+        }
+
+        toast({
+          title: "更新完了",
+          description: "ユーザー情報を更新しました。",
+        });
+      } else {
+        // 新規ユーザーの登録
+        const userData: any = {
+          sheet_name: sheetName,
+          role: role || 'member'
+        };
+
+        // 各フィールドが入力されている場合のみ設定
+        if (name) userData.name = name;
+        if (email) userData.email = email;
+
+        // 事前登録モードでない場合のみGoogle Sub IDを設定
+        if (!isPreRegistration && googleSub) {
+          userData.google_sub = googleSub;
+        }
+
+        const insertResponse = await fetch(`${supabase.supabaseUrl}/rest/v1/users`, {
+          method: 'POST',
+          headers: {
+            'apikey': supabase.supabaseKey,
+            'Authorization': `Bearer ${supabase.supabaseKey}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify(userData)
+        });
+
+        if (!insertResponse.ok) {
+          throw new Error(`登録エラー: ${insertResponse.statusText}`);
+        }
+
+        toast({
+          title: "登録完了",
+          description: isPreRegistration ? "メンバーを事前登録しました。" : "ユーザーを登録しました。",
+        });
+        
+        // 事前登録モードの場合はフォームをリセット
+        if (isPreRegistration) {
+          resetForm();
+        }
+      }
+
+      // ユーザー一覧を再取得
+      fetchUsers();
+      // 承認待ちユーザー一覧も更新
+      fetchPendingUsers();
+    } catch (error) {
+      console.error('ユーザー登録エラー:', error);
+      toast({
+        title: "エラー",
+        description: error instanceof Error ? error.message : "ユーザー登録に失敗しました。",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ユーザー一覧をフィルタリング
+  const filteredUsers = usersList.filter(user => {
     if (!searchTerm) return true;
+    const searchLower = searchTerm.toLowerCase();
     return (
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.sheetName.toLowerCase().includes(searchTerm.toLowerCase())
+      (user.name && user.name.toLowerCase().includes(searchLower)) ||
+      (user.email && user.email.toLowerCase().includes(searchLower)) ||
+      (user.sheet_name && user.sheet_name.toLowerCase().includes(searchLower))
     );
   });
 
+  // 承認待ちユーザーを承認する
+  const handleApprovePendingUser = async (pendingUser: PendingUser) => {
+    setLoading(true);
+    try {
+      // 新規ユーザーの登録
+      const insertResponse = await fetch(`${supabase.supabaseUrl}/rest/v1/users`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabase.supabaseKey,
+          'Authorization': `Bearer ${supabase.supabaseKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          google_sub: pendingUser.id,
+          name: pendingUser.name,
+          email: pendingUser.email,
+          sheet_name: pendingUser.email.split('@')[0],
+          role: 'member'
+        })
+      });
+
+      if (!insertResponse.ok) {
+        throw new Error(`承認エラー: ${insertResponse.statusText}`);
+      }
+
+      toast({
+        title: "承認完了",
+        description: `${pendingUser.name}さんを承認しました。`,
+      });
+
+      // ユーザー一覧と承認待ちユーザー一覧を再取得
+      fetchUsers();
+      fetchPendingUsers();
+    } catch (error) {
+      console.error('ユーザー承認エラー:', error);
+      toast({
+        title: "エラー",
+        description: error instanceof Error ? error.message : "ユーザー承認に失敗しました。",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 現在のユーザー情報を表示
+  const handleShowCurrentUser = () => {
+    if (user) {
+      console.log('現在のユーザー情報:', user);
+      toast({
+        title: "現在のユーザー情報",
+        description: `ID: ${user.id}, Email: ${user.email}`,
+      });
+    } else {
+      toast({
+        title: "エラー",
+        description: "ログインしていません。",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
-      >
-        <div>
-          <h2 className="text-3xl font-bold text-gray-900">管理者ダッシュボード</h2>
-          <p className="text-gray-500">システム設定、スプレッドシートのインポート、ユーザー管理</p>
-        </div>
-      </motion.div>
-
-      <Tabs defaultValue="dashboard" onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid grid-cols-3 w-full sm:w-auto">
-          <TabsTrigger value="dashboard">ダッシュボード</TabsTrigger>
+    <div className="container mx-auto py-6">
+      <h1 className="text-3xl font-bold mb-6">管理者ページ</h1>
+      
+      <Tabs defaultValue="users" className="mb-6">
+        <TabsList className="mb-4">
           <TabsTrigger value="users">ユーザー管理</TabsTrigger>
-          <TabsTrigger value="import">データインポート</TabsTrigger>
+          <TabsTrigger value="pending">
+            承認待ち
+            {pendingUsers.length > 0 && (
+              <Badge variant="destructive" className="ml-2">{pendingUsers.length}</Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
-
-        {/* Dashboard */}
-        <TabsContent value="dashboard" className="space-y-6">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card className="border-blue-100">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500">ユーザー数</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100">
-                    <Users className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold">{mockStats.users}</p>
-                    <p className="text-xs text-gray-500">チームメンバー</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="border-indigo-100">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500">イベント数</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-indigo-100">
-                    <Calendar className="h-6 w-6 text-indigo-600" />
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold">{mockStats.events}</p>
-                    <p className="text-xs text-gray-500">スケジュール登録件数</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="border-emerald-100">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500">タスク数</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-100">
-                    <CheckSquare className="h-6 w-6 text-emerald-600" />
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold">{mockStats.tasks}</p>
-                    <p className="text-xs text-gray-500">タスク登録件数</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="border-amber-100">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500">プロジェクト数</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-100">
-                    <Folder className="h-6 w-6 text-amber-600" />
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold">{mockStats.projects}</p>
-                    <p className="text-xs text-gray-500">プロジェクト件数</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card className="border-blue-100">
+        
+        <TabsContent value="users" className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card>
             <CardHeader>
-              <CardTitle>最近のインポート履歴</CardTitle>
-              <CardDescription>スプレッドシートからのインポート履歴</CardDescription>
+              <CardTitle>
+                {isPreRegistration ? "メンバー事前登録" : "ユーザー登録"}
+              </CardTitle>
+              <CardDescription>
+                {isPreRegistration 
+                  ? "Google認証前にメンバー情報を登録します（シート名を設定）" 
+                  : "ユーザー情報を登録または更新します"}
+              </CardDescription>
+              <div className="flex items-center space-x-2 mt-2">
+                <input
+                  type="checkbox"
+                  id="pre-registration"
+                  checked={isPreRegistration}
+                  onChange={togglePreRegistration}
+                  className="rounded border-gray-300"
+                />
+                <Label htmlFor="pre-registration" className="cursor-pointer">
+                  事前登録モード
+                </Label>
+              </div>
             </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>日時</TableHead>
-                    <TableHead>タイプ</TableHead>
-                    <TableHead>ステータス</TableHead>
-                    <TableHead className="text-right">イベント数</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {mockImportHistory.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        <div className="font-medium">{format(item.timestamp, "yyyy/MM/dd")}</div>
-                        <div className="text-xs text-gray-500">{format(item.timestamp, "HH:mm:ss")}</div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={item.type === "automatic" ? "border-blue-200 text-blue-700" : "border-indigo-200 text-indigo-700"}>
-                          {item.type === "automatic" ? "自動" : "手動"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={item.status === "success" ? "success" : "destructive"} className="bg-opacity-10">
-                          {item.status === "success" ? "成功" : "エラー"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">{item.eventsCount}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-            <CardFooter className="flex justify-end">
-              <Button variant="outline" size="sm">全ての履歴を表示</Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-
-        {/* User Management */}
-        <TabsContent value="users" className="space-y-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="relative w-full md:w-80">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-              <Input
-                placeholder="ユーザーを検索"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4"
-              />
-            </div>
-            <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2 whitespace-nowrap">
-                  <UserPlus className="h-4 w-4" />
-                  ユーザーを追加
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                  <DialogTitle>新規ユーザー追加</DialogTitle>
-                  <DialogDescription>
-                    ユーザー情報を入力して、追加ボタンを押してください。
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="name">ユーザー名 *</Label>
-                    <Input
-                      id="name"
-                      value={newUser.name}
-                      onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                      placeholder="例：田中 太郎"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">メールアドレス *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={newUser.email}
-                      onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                      placeholder="例：tanaka@example.com"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="sheetName">シート名 *</Label>
-                    <Input
-                      id="sheetName"
-                      value={newUser.sheetName}
-                      onChange={(e) => setNewUser({ ...newUser, sheetName: e.target.value })}
-                      placeholder="例：田中（スプレッドシート上の名前）"
-                    />
-                    <p className="text-xs text-gray-500">スプレッドシート上で使われている名前・識別子を入力</p>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="isAdmin">管理者権限</Label>
-                    <Switch
-                      id="isAdmin"
-                      checked={newUser.role === "admin"}
-                      onCheckedChange={(checked) => setNewUser({ ...newUser, role: checked ? "admin" : "member" })}
-                    />
-                  </div>
+            <CardContent className="space-y-4">
+              {!isPreRegistration && (
+                <div className="space-y-2">
+                  <Label htmlFor="google-sub">Google Sub ID</Label>
+                  <Input
+                    id="google-sub"
+                    value={googleSub}
+                    onChange={(e) => setGoogleSub(e.target.value)}
+                    placeholder="Google Sub ID"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    現在のID: {user?.id}
+                  </p>
                 </div>
-                <DialogFooter>
-                  <Button type="submit" onClick={handleAddUser}>追加</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          <Card className="border-blue-100">
-            <CardHeader>
-              <CardTitle>ユーザー一覧</CardTitle>
-              <CardDescription>全てのユーザーとその権限</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ユーザー</TableHead>
-                    <TableHead>シート名</TableHead>
-                    <TableHead>メールアドレス</TableHead>
-                    <TableHead>権限</TableHead>
-                    <TableHead className="text-right">操作</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {usersLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center">読み込み中...</TableCell>
-                    </TableRow>
-                  ) : filteredUsers.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center">該当するユーザーはいません</TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredUsers.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src={`https://api.dicebear.com/7.x/lorelei/svg?seed=${user.id}`} alt={user.name} />
-                              <AvatarFallback>{user.name.substring(0, 2)}</AvatarFallback>
-                            </Avatar>
-                            <div className="font-medium">{user.name}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{user.sheetName}</TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Badge variant={user.role === "admin" ? "default" : "secondary"}>
-                              {user.role === "admin" ? "管理者" : "メンバー"}
-                            </Badge>
-                            <Switch
-                              size="sm"
-                              checked={user.role === "admin"}
-                              onCheckedChange={(checked) => handleUserRoleToggle(user.id, checked)}
-                            />
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem>編集</DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-red-600">削除</DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Import Settings */}
-        <TabsContent value="import" className="space-y-6">
-          <Card className="border-blue-100">
-            <CardHeader>
-              <CardTitle>スプレッドシートからのインポート</CardTitle>
-              <CardDescription>Google Sheetsからのデータインポートを管理</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex flex-col gap-4 p-4 border rounded-lg bg-gray-50">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
-                    <FileSpreadsheet className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-medium">スプレッドシート連携状況</h3>
-                    <p className="text-sm text-gray-500">最終インポート: {format(mockImportHistory[0].timestamp, "yyyy/MM/dd HH:mm")}</p>
-                  </div>
-                  <Badge variant="outline" className="border-green-200 text-green-700">
-                    連携中
-                  </Badge>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <Label className="text-xs text-gray-500">スプレッドシートID</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Input value="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms" readOnly />
-                      <Button variant="outline" size="icon" className="shrink-0">
-                        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M5 2V1H10V2H5ZM4.75 0C4.33579 0 4 0.335786 4 0.75V2.25C4 2.66421 4.33579 3 4.75 3H10.25C10.6642 3 11 2.66421 11 2.25V0.75C11 0.335786 10.6642 0 10.25 0H4.75ZM2 4.5C2 4.22386 2.22386 4 2.5 4H12.5C12.7761 4 13 4.22386 13 4.5V12.5C13 12.7761 12.7761 13 12.5 13H2.5C2.22386 13 2 12.7761 2 12.5V4.5ZM2.5 3C1.67157 3 1 3.67157 1 4.5V12.5C1 13.3284 1.67157 14 2.5 14H12.5C13.3284 14 14 13.3284 14 12.5V4.5C14 3.67157 13.3284 3 12.5 3H2.5Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path>
-                        </svg>
-                      </Button>
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-500">シート名</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Input value="チームスケジュール" readOnly />
-                      <Button variant="outline" size="icon" className="shrink-0">
-                        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M5 2V1H10V2H5ZM4.75 0C4.33579 0 4 0.335786 4 0.75V2.25C4 2.66421 4.33579 3 4.75 3H10.25C10.6642 3 11 2.66421 11 2.25V0.75C11 0.335786 10.6642 0 10.25 0H4.75ZM2 4.5C2 4.22386 2.22386 4 2.5 4H12.5C12.7761 4 13 4.22386 13 4.5V12.5C13 12.7761 12.7761 13 12.5 13H2.5C2.22386 13 2 12.7761 2 12.5V4.5ZM2.5 3C1.67157 3 1 3.67157 1 4.5V12.5C1 13.3284 1.67157 14 2.5 14H12.5C13.3284 14 14 13.3284 14 12.5V4.5C14 3.67157 13.3284 3 12.5 3H2.5Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path>
-                        </svg>
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+              )}
+              
+              <div className="space-y-2">
+                <Label htmlFor="name">名前</Label>
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="名前"
+                />
+                {isPreRegistration && (
+                  <p className="text-sm text-muted-foreground">
+                    任意項目（後から更新可能）
+                  </p>
+                )}
               </div>
               
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-medium">自動インポート</h3>
-                    <p className="text-sm text-gray-500">毎日0時に自動的にインポートします</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-                <div className="border-t pt-3">
-                  <Button className="gap-2 w-full sm:w-auto" disabled={isImporting} onClick={handleSpreadsheetImport}>
-                    {isImporting ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                        インポート中...
-                      </>
-                    ) : (
-                      <>
-                        <FileSpreadsheet className="h-4 w-4" />
-                        今すぐインポート
-                      </>
-                    )}
+              <div className="space-y-2">
+                <Label htmlFor="email">メールアドレス</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="メールアドレス"
+                />
+                {isPreRegistration && (
+                  <p className="text-sm text-muted-foreground">
+                    任意項目（後から更新可能）
+                  </p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="sheet-name">シート名 <span className="text-red-500">*</span></Label>
+                <Input
+                  id="sheet-name"
+                  value={sheetName}
+                  onChange={(e) => setSheetName(e.target.value)}
+                  placeholder="シート名"
+                />
+                <p className="text-sm text-muted-foreground">
+                  スプレッドシートのシート名と一致させてください（必須項目）
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="role">役割</Label>
+                <select
+                  id="role"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  className="w-full p-2 border rounded"
+                >
+                  <option value="admin">管理者</option>
+                  <option value="member">メンバー</option>
+                </select>
+              </div>
+              
+              <div className="flex space-x-2 pt-4">
+                <Button onClick={handleRegisterUser} disabled={loading}>
+                  {loading ? "処理中..." : isPreRegistration ? "メンバーを事前登録" : "登録/更新"}
+                </Button>
+                {!isPreRegistration && (
+                  <Button variant="outline" onClick={handleShowCurrentUser}>
+                    現在のユーザー情報
                   </Button>
-                </div>
+                )}
+                {isPreRegistration && (
+                  <Button variant="outline" onClick={resetForm}>
+                    フォームをクリア
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
-
-          <Card className="border-blue-100">
+          
+          <Card>
             <CardHeader>
-              <CardTitle>最近のインポート履歴</CardTitle>
-              <CardDescription>直近のインポート処理の結果</CardDescription>
+              <CardTitle>ユーザー一覧</CardTitle>
+              <CardDescription>登録済みのユーザー</CardDescription>
+              <div className="mt-2">
+                <Input
+                  placeholder="名前、メール、シート名で検索..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>日時</TableHead>
-                    <TableHead>タイプ</TableHead>
-                    <TableHead>ステータス</TableHead>
-                    <TableHead>詳細</TableHead>
-                    <TableHead className="text-right">イベント数</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {mockImportHistory.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        <div className="font-medium">{format(item.timestamp, "yyyy/MM/dd")}</div>
-                        <div className="text-xs text-gray-500">{format(item.timestamp, "HH:mm:ss")}</div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={item.type === "automatic" ? "border-blue-200 text-blue-700" : "border-indigo-200 text-indigo-700"}>
-                          {item.type === "automatic" ? "自動" : "手動"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={item.status === "success" ? "success" : "destructive"} className="bg-opacity-10">
-                          {item.status === "success" ? "成功" : "エラー"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate">{item.details}</TableCell>
-                      <TableCell className="text-right">{item.eventsCount}</TableCell>
-                    </TableRow>
+              {loading ? (
+                <div className="text-center py-4">読み込み中...</div>
+              ) : fetchError ? (
+                <div className="text-center py-4 text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-3">
+                  <p>{fetchError}</p>
+                  <p className="text-sm mt-2">RLSポリシーエラーが発生しています。まずは自分自身をユーザー登録してください。</p>
+                </div>
+              ) : filteredUsers.length > 0 ? (
+                <div className="space-y-4">
+                  {filteredUsers.map((user) => (
+                    <div key={user.id} className="border p-3 rounded">
+                      <div className="font-medium">{user.name || '名前未設定'}</div>
+                      <div className="text-sm text-muted-foreground">
+                        ID: {user.id}
+                        {user.google_sub ? (
+                          <span>, Google Sub: {user.google_sub}</span>
+                        ) : (
+                          <span className="text-amber-600"> (未認証)</span>
+                        )}
+                      </div>
+                      <div className="text-sm">
+                        {user.email && <span>メール: {user.email}, </span>}
+                        <span className="font-medium">シート名: {user.sheet_name}</span>, 役割: {user.role}
+                      </div>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+              ) : (
+                <div className="text-center py-4 text-muted-foreground">
+                  {searchTerm ? "検索条件に一致するユーザーはいません" : "ユーザーが登録されていません"}
+                </div>
+              )}
+              
+              <Button 
+                variant="outline" 
+                className="w-full mt-4"
+                onClick={fetchUsers}
+                disabled={loading}
+              >
+                更新
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="pending">
+          <Card>
+            <CardHeader>
+              <CardTitle>承認待ちユーザー</CardTitle>
+              <CardDescription>
+                Google認証済みで、システムへの登録承認待ちのユーザー一覧
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingPendingUsers ? (
+                <div className="text-center py-4">読み込み中...</div>
+              ) : pendingUsers.length > 0 ? (
+                <div className="space-y-4">
+                  {pendingUsers.map((pendingUser) => (
+                    <div key={pendingUser.id} className="border p-4 rounded-md flex justify-between items-center">
+                      <div>
+                        <div className="font-medium">{pendingUser.name}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {pendingUser.email}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          登録日: {new Date(pendingUser.created_at).toLocaleString()}
+                        </div>
+                      </div>
+                      <Button 
+                        onClick={() => handleApprovePendingUser(pendingUser)}
+                        disabled={loading}
+                      >
+                        承認
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  承認待ちのユーザーはいません
+                </div>
+              )}
+              
+              <Button 
+                variant="outline" 
+                className="w-full mt-4"
+                onClick={fetchPendingUsers}
+                disabled={loadingPendingUsers}
+              >
+                更新
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>

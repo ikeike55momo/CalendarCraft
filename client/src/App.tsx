@@ -10,29 +10,106 @@ import Projects from "@/pages/projects";
 import Admin from "@/pages/admin";
 import Attendance from "@/pages/attendance";
 import NotFound from "@/pages/not-found";
+import WaitingApproval from "@/pages/waiting-approval";
 import { supabase, setupAuthListener } from "@/lib/supabase";
-import { Session } from "@supabase/supabase-js";
+import { Session, User } from "@supabase/supabase-js";
 
 function Router() {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRegisteredUser, setIsRegisteredUser] = useState<boolean | null>(null);
 
   useEffect(() => {
     // 初期セッションの取得
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setIsLoading(false);
+      if (session?.user) {
+        checkAndUpdateUserRegistration(session.user);
+      } else {
+        setIsLoading(false);
+      }
     });
 
     // 認証状態の変更を監視
-    const { data: { subscription } } = setupAuthListener((session) => {
+    const { data: { subscription } } = setupAuthListener((session: Session | null) => {
       setSession(session);
+      if (session?.user) {
+        checkAndUpdateUserRegistration(session.user);
+      } else {
+        setIsRegisteredUser(null);
+        setIsLoading(false);
+      }
     });
 
     return () => {
       subscription.unsubscribe();
     };
   }, []);
+
+  // ユーザーが登録済みかチェックし、必要に応じてGoogle Sub IDを更新する関数
+  const checkAndUpdateUserRegistration = async (user: User) => {
+    try {
+      // まず、Google Sub IDで検索
+      const subResponse = await fetch(`${supabase.supabaseUrl}/rest/v1/users?google_sub=eq.${encodeURIComponent(user.id)}`, {
+        method: 'GET',
+        headers: {
+          'apikey': supabase.supabaseKey,
+          'Authorization': `Bearer ${supabase.supabaseKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const usersBySub = await subResponse.json();
+      
+      // Google Sub IDで見つかった場合は登録済み
+      if (usersBySub && usersBySub.length > 0) {
+        setIsRegisteredUser(true);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Google Sub IDで見つからない場合は、メールアドレスで検索
+      if (user.email) {
+        const emailResponse = await fetch(`${supabase.supabaseUrl}/rest/v1/users?email=eq.${encodeURIComponent(user.email)}`, {
+          method: 'GET',
+          headers: {
+            'apikey': supabase.supabaseKey,
+            'Authorization': `Bearer ${supabase.supabaseKey}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const usersByEmail = await emailResponse.json();
+        
+        // メールアドレスで見つかった場合は、承認待ちステータスにする
+        if (usersByEmail && usersByEmail.length > 0) {
+          const existingUser = usersByEmail[0];
+          
+          // 管理者による承認が必要なため、未登録状態にして承認待ちページに誘導
+          setIsRegisteredUser(false);
+          setIsLoading(false);
+          
+          // 承認待ちユーザーとして記録（オプション）
+          try {
+            // 承認待ちテーブルに登録するなどの処理をここに追加
+            console.log('メールアドレスが一致するユーザーが見つかりました。管理者の承認待ちです:', existingUser.name);
+          } catch (error) {
+            console.error('承認待ちユーザー登録エラー:', error);
+          }
+          
+          return;
+        }
+      }
+      
+      // どちらでも見つからない場合は未登録
+      setIsRegisteredUser(false);
+    } catch (error) {
+      console.error('ユーザー登録確認エラー:', error);
+      setIsRegisteredUser(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // ユーザーが管理者かどうかを判定
   const isAdmin = session?.user?.user_metadata?.role === 'admin';
@@ -67,6 +144,11 @@ function Router() {
       </div>
     );
   }
+
+  // 認証済みだが未登録の場合は承認待ちページにリダイレクト
+  if (isRegisteredUser === false) {
+    return <WaitingApproval />;
+  }
   
   return (
     <Layout isAdmin={isAdmin}>
@@ -76,6 +158,7 @@ function Router() {
         <Route path="/projects" component={Projects} />
         <Route path="/attendance" component={Attendance} />
         <Route path="/admin" component={Admin} />
+        <Route path="/waiting-approval" component={WaitingApproval} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

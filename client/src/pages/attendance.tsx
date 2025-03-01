@@ -67,12 +67,16 @@ export default function AttendancePage() {
   // 勤怠データの取得
   const { data: attendanceResponse, isLoading } = useQuery({
     queryKey: ["attendance", user?.id],
-    queryFn: () => dataService.attendance.getByUserId(user?.id || ""),
+    queryFn: () => {
+      console.log("勤怠データ取得: ユーザーID", user?.id);
+      return dataService.attendance.getByUserId(user?.id || "");
+    },
     enabled: !!user?.id,
   });
 
   // データの配列部分を取得
   const attendanceData = attendanceResponse?.data || [];
+  console.log("取得した勤怠データ:", attendanceData);
 
   // 選択した日付の勤怠データ
   const selectedDateAttendance = attendanceData.find(
@@ -182,8 +186,8 @@ export default function AttendancePage() {
         });
       } else {
         return dataService.attendance.upsert({
-          user_id: user?.id || "",
           date: format(selectedDate, "yyyy-MM-dd"),
+          user_id: user?.id || "",
           attendance_log: data.attendance_log || [],
         });
       }
@@ -191,18 +195,18 @@ export default function AttendancePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["attendance"] });
       toast({
-        title: "勤怠を記録しました",
-        description: `${format(selectedDate, "yyyy年MM月dd日")}の勤怠を記録しました。`,
+        title: "勤怠情報を更新しました",
+        description: "勤怠情報が正常に更新されました。",
       });
     },
     onError: (error) => {
+      console.error("勤怠更新エラー:", error);
       toast({
         title: "エラー",
-        description: "勤怠の記録に失敗しました。",
+        description: "勤怠情報の更新に失敗しました。",
         variant: "destructive",
       });
-      console.error(error);
-    },
+    }
   });
 
   // 勤怠記録の追加

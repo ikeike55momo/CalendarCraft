@@ -60,7 +60,11 @@ export default function Calendar() {
               setView={setView}
             />
             <GoogleCalendarExportButton />
-            <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+            <Button 
+              size="sm" 
+              className="bg-blue-600 hover:bg-blue-700"
+              onClick={() => setSelectedDate(new Date())}
+            >
               <Plus className="h-4 w-4 mr-1" />
               予定追加
             </Button>

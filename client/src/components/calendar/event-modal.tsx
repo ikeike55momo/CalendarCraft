@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { insertEventSchema, type InsertEvent, insertAttendanceSchema, type InsertAttendance, insertTaskSchema, type InsertTask, type Project, type Event } from "@shared/schema";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -57,9 +57,18 @@ export function EventModal({ date, onClose, events }: EventModalProps) {
 
   const createEvent = useMutation({
     mutationFn: async (data: InsertEvent) => {
-      await apiRequest("POST", "/api/events", data);
+      console.log("送信データ:", data);
+      try {
+        const response = await apiRequest("POST", "/api/events", data);
+        console.log("APIレスポンス:", response);
+        return response;
+      } catch (error) {
+        console.error("APIエラー:", error);
+        throw error;
+      }
     },
     onSuccess: () => {
+      console.log("イベント作成成功");
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       toast({
         title: "イベントを作成しました",
@@ -67,11 +76,27 @@ export function EventModal({ date, onClose, events }: EventModalProps) {
       });
       onClose();
     },
+    onError: (error) => {
+      console.error("イベント作成エラー:", error);
+      toast({
+        title: "エラー",
+        description: "イベントの作成に失敗しました。",
+        variant: "destructive",
+      });
+    }
   });
 
   const createAttendance = useMutation({
     mutationFn: async (data: InsertAttendance) => {
-      await apiRequest("POST", "/api/attendance", data);
+      console.log("勤怠データ送信:", data);
+      try {
+        const response = await apiRequest("POST", "/api/attendance", data);
+        console.log("勤怠APIレスポンス:", response);
+        return response;
+      } catch (error) {
+        console.error("勤怠APIエラー:", error);
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
@@ -81,6 +106,14 @@ export function EventModal({ date, onClose, events }: EventModalProps) {
       });
       onClose();
     },
+    onError: (error) => {
+      console.error("勤怠登録エラー:", error);
+      toast({
+        title: "エラー",
+        description: "勤怠情報の登録に失敗しました。",
+        variant: "destructive",
+      });
+    }
   });
 
   const createTask = useMutation({
@@ -107,6 +140,9 @@ export function EventModal({ date, onClose, events }: EventModalProps) {
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>新規予定登録</DialogTitle>
+          <DialogDescription>
+            {format(date, "yyyy年MM月dd日")}の予定を登録します
+          </DialogDescription>
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
@@ -125,7 +161,15 @@ export function EventModal({ date, onClose, events }: EventModalProps) {
             className="space-y-6"
           >
             <Form {...form}>
-              <form onSubmit={form.handleSubmit((data) => createEvent.mutate(data))} className="space-y-4">
+              <form onSubmit={form.handleSubmit((data) => {
+                // 日付文字列をISOString形式に変換
+                const formattedData = {
+                  ...data,
+                  // startTimeとendTimeはすでに文字列なので変換不要
+                };
+                console.log("送信データ:", formattedData);
+                createEvent.mutate(formattedData);
+              })} className="space-y-4">
                 <FormField
                   control={form.control}
                   name="title"
@@ -164,7 +208,14 @@ export function EventModal({ date, onClose, events }: EventModalProps) {
                       <FormItem>
                         <FormLabel>開始時間</FormLabel>
                         <FormControl>
-                          <Input type="datetime-local" {...field} />
+                          <Input 
+                            type="datetime-local" 
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            name={field.name}
+                            ref={field.ref}
+                            value={field.value || ""}
+                          />
                         </FormControl>
                       </FormItem>
                     )}
@@ -177,7 +228,14 @@ export function EventModal({ date, onClose, events }: EventModalProps) {
                       <FormItem>
                         <FormLabel>終了時間</FormLabel>
                         <FormControl>
-                          <Input type="datetime-local" {...field} />
+                          <Input 
+                            type="datetime-local" 
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            name={field.name}
+                            ref={field.ref}
+                            value={field.value || ""}
+                          />
                         </FormControl>
                       </FormItem>
                     )}
@@ -241,10 +299,18 @@ export function EventModal({ date, onClose, events }: EventModalProps) {
                   return;
                 }
                 
+                // 必ず配列として扱う
+                const currentLog = Array.isArray(data.attendanceLog) ? data.attendanceLog : [];
+                
                 const updatedLog = [
-                  ...(data.attendanceLog || []),
+                  ...currentLog,
                   { type, time: timeStr }
                 ];
+                
+                console.log("送信前の勤怠データ:", {
+                  ...data,
+                  attendanceLog: updatedLog
+                });
                 
                 createAttendance.mutate({
                   ...data,

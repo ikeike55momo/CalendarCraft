@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { 
   Calendar, 
@@ -22,6 +22,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { signOut, supabase } from '@/lib/supabase';
+import { useToast } from '@/components/ui/use-toast';
+import { Session } from '@supabase/supabase-js';
 
 type NavItem = {
   label: string;
@@ -67,16 +70,63 @@ type LayoutProps = {
 export function Layout({ children, isAdmin = false }: LayoutProps) {
   const [location, navigate] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { toast } = useToast();
+  const [session, setSession] = useState<Session | null>(null);
+  const [userName, setUserName] = useState('ユーザー');
+  const [userEmail, setUserEmail] = useState('');
+  const [userAvatar, setUserAvatar] = useState('');
 
-  const handleLogout = () => {
-    // TODO: Implement logout functionality
-    console.log('Logout clicked');
+  // セッション情報の取得
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session: authSession } }: { data: { session: Session | null } }) => {
+      setSession(authSession);
+      if (authSession?.user) {
+        setUserName(authSession.user.user_metadata?.full_name || authSession.user.email?.split('@')[0] || 'ユーザー');
+        setUserEmail(authSession.user.email || '');
+        setUserAvatar(authSession.user.user_metadata?.avatar_url || '');
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, authSession: Session | null) => {
+      setSession(authSession);
+      if (authSession?.user) {
+        setUserName(authSession.user.user_metadata?.full_name || authSession.user.email?.split('@')[0] || 'ユーザー');
+        setUserEmail(authSession.user.email || '');
+        setUserAvatar(authSession.user.user_metadata?.avatar_url || '');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "ログアウト成功",
+        description: "正常にログアウトしました。",
+      });
+      navigate('/');
+    } catch (error) {
+      console.error('ログアウトエラー:', error);
+      toast({
+        title: "ログアウトエラー",
+        description: "ログアウトに失敗しました。もう一度お試しください。",
+        variant: "destructive",
+      });
+    }
   };
 
   const filteredNavItems = navItems.filter(item => !item.adminOnly || (item.adminOnly && isAdmin));
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
+  };
+
+  // ユーザー名の頭文字を取得（アバターのフォールバック用）
+  const getInitials = () => {
+    if (!userName) return 'U';
+    return userName.charAt(0).toUpperCase();
   };
 
   return (
@@ -122,13 +172,13 @@ export function Layout({ children, isAdmin = false }: LayoutProps) {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className={`w-full ${sidebarOpen ? 'justify-start gap-3' : 'justify-center'}`}>
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src="https://github.com/shadcn.png" alt="@user" />
-                    <AvatarFallback>WT</AvatarFallback>
+                    <AvatarImage src={userAvatar} alt={userName} />
+                    <AvatarFallback>{getInitials()}</AvatarFallback>
                   </Avatar>
                   {sidebarOpen && (
                     <div className="flex flex-col items-start">
-                      <span className="text-sm font-medium">ユーザー名</span>
-                      <span className="text-xs text-muted-foreground">user@example.com</span>
+                      <span className="text-sm font-medium">{userName}</span>
+                      <span className="text-xs text-muted-foreground">{userEmail}</span>
                     </div>
                   )}
                 </Button>
@@ -136,9 +186,9 @@ export function Layout({ children, isAdmin = false }: LayoutProps) {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>アカウント</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => console.log('Profile')}>
+                <DropdownMenuItem onClick={() => navigate('/admin')}>
                   <User className="h-4 w-4 mr-2" />
-                  <span>プロフィール</span>
+                  <span>管理者ページ</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="h-4 w-4 mr-2" />

@@ -67,7 +67,10 @@ export const projectMembers = pgTable("project_members", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertEventSchema = createInsertSchema(events).omit({ 
+export const insertEventSchema = createInsertSchema(events, {
+  startTime: z.string(),
+  endTime: z.string()
+}).omit({ 
   id: true,
   createdAt: true,
   updatedAt: true 
