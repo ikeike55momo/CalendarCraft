@@ -86,30 +86,11 @@ export default function AdminPage() {
     }
   };
 
-  // 承認待ちユーザー一覧を取得
+  // 承認待ちユーザー一覧を取得（クライアントサイドで実行可能な方法に変更）
   const fetchPendingUsers = async () => {
     setLoadingPendingUsers(true);
     try {
-      // Supabase Authから全ユーザーを取得（管理者のみ実行可能）
-      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
-      
-      if (authError) {
-        console.error('Auth ユーザー一覧取得エラー:', authError);
-        toast({
-          title: "エラー",
-          description: "承認待ちユーザーの取得に失敗しました。管理者権限が必要です。",
-          variant: "destructive",
-        });
-        setPendingUsers([]);
-        return;
-      }
-      
-      if (!authUsers || !authUsers.users) {
-        setPendingUsers([]);
-        return;
-      }
-      
-      // 登録済みユーザーのIDを取得
+      // 登録済みユーザーのGoogle Sub IDを取得
       const response = await fetch(`${supabase.supabaseUrl}/rest/v1/users`, {
         method: 'GET',
         headers: {
@@ -119,27 +100,49 @@ export default function AdminPage() {
         }
       });
       
+      if (!response.ok) {
+        throw new Error(`ユーザー一覧取得エラー: ${response.statusText}`);
+      }
+      
       const registeredUsers = await response.json();
-      const registeredUserIds = registeredUsers.map((u: any) => u.google_sub);
+      const registeredUserIds = registeredUsers.map((u: any) => u.google_sub).filter(Boolean);
       
-      // 登録されていないユーザーをフィルタリング
-      const pending = authUsers.users
-        .filter(authUser => !registeredUserIds.includes(authUser.id))
-        .map(authUser => ({
-          id: authUser.id,
-          email: authUser.email || '',
-          name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || '',
-          created_at: authUser.created_at
-        }));
+      // 現在のセッションから自分自身の情報を取得
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
       
-      setPendingUsers(pending);
+      if (!currentUser) {
+        throw new Error('現在のユーザー情報を取得できません');
+      }
+      
+      // 自分自身が登録済みかチェック
+      const isCurrentUserRegistered = registeredUserIds.includes(currentUser.id);
+      
+      // 自分自身が登録されていない場合は、承認待ちユーザーとして表示
+      if (!isCurrentUserRegistered) {
+        setPendingUsers([{
+          id: currentUser.id,
+          email: currentUser.email || '',
+          name: currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || '',
+          created_at: currentUser.created_at || new Date().toISOString()
+        }]);
+      } else {
+        // 自分自身は登録済みなので、空の配列を設定
+        setPendingUsers([]);
+        
+        // 注意: Admin APIが使えないため、他のユーザーの承認待ち状態は取得できません
+        toast({
+          title: "情報",
+          description: "クライアントサイドからは他のユーザーの承認待ち状態を取得できません。サーバーサイド機能が必要です。",
+        });
+      }
     } catch (error) {
       console.error('承認待ちユーザー取得エラー:', error);
       toast({
         title: "エラー",
-        description: "承認待ちユーザーの取得に失敗しました。",
+        description: error instanceof Error ? error.message : "承認待ちユーザーの取得に失敗しました。",
         variant: "destructive",
       });
+      setPendingUsers([]);
     } finally {
       setLoadingPendingUsers(false);
     }
@@ -223,6 +226,10 @@ export default function AdminPage() {
           }
         });
         
+        if (!emailResponse.ok) {
+          throw new Error(`メールアドレス検索エラー: ${emailResponse.statusText}`);
+        }
+        
         const existingUsers = await emailResponse.json();
         if (existingUsers.length > 0) {
           existingUser = existingUsers[0];
@@ -239,6 +246,10 @@ export default function AdminPage() {
             'Content-Type': 'application/json'
           }
         });
+        
+        if (!sheetNameResponse.ok) {
+          throw new Error(`シート名検索エラー: ${sheetNameResponse.statusText}`);
+        }
         
         const existingUsersBySheet = await sheetNameResponse.json();
         if (existingUsersBySheet.length > 0) {
@@ -275,7 +286,8 @@ export default function AdminPage() {
         });
 
         if (!updateResponse.ok) {
-          throw new Error(`更新エラー: ${updateResponse.statusText}`);
+          const errorText = await updateResponse.text();
+          throw new Error(`更新エラー: ${updateResponse.statusText} - ${errorText}`);
         }
 
         toast({
@@ -310,7 +322,8 @@ export default function AdminPage() {
         });
 
         if (!insertResponse.ok) {
-          throw new Error(`登録エラー: ${insertResponse.statusText}`);
+          const errorText = await insertResponse.text();
+          throw new Error(`登録エラー: ${insertResponse.statusText} - ${errorText}`);
         }
 
         toast({
@@ -374,7 +387,8 @@ export default function AdminPage() {
       });
 
       if (!insertResponse.ok) {
-        throw new Error(`承認エラー: ${insertResponse.statusText}`);
+        const errorText = await insertResponse.text();
+        throw new Error(`承認エラー: ${insertResponse.statusText} - ${errorText}`);
       }
 
       toast({
@@ -609,6 +623,12 @@ export default function AdminPage() {
               <CardDescription>
                 Google認証済みで、システムへの登録承認待ちのユーザー一覧
               </CardDescription>
+              <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                <p className="text-sm text-amber-600">
+                  <strong>注意:</strong> クライアントサイドからは他のユーザーの承認待ち状態を取得できません。
+                  現在のユーザー（あなた自身）が未登録の場合のみ表示されます。
+                </p>
+              </div>
             </CardHeader>
             <CardContent>
               {loadingPendingUsers ? (
