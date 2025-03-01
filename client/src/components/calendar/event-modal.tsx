@@ -3,8 +3,8 @@ import { format } from "date-fns";
 import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
-import { insertEventSchema, type InsertEvent } from "@shared/schema";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { insertEventSchema, type InsertEvent, insertAttendanceSchema, type InsertAttendance, insertTaskSchema, type InsertTask, type Project, type Event } from "@shared/schema";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -18,11 +18,13 @@ import { useToast } from "@/hooks/use-toast";
 interface EventModalProps {
   date: Date;
   onClose: () => void;
+  events: Event[];
 }
 
-export function EventModal({ date, onClose }: EventModalProps) {
+export function EventModal({ date, onClose, events }: EventModalProps) {
   const [tab, setTab] = useState<"schedule" | "attendance" | "task">("schedule");
   const { toast } = useToast();
+  const [manualTime, setManualTime] = useState<string | null>(null);
 
   const form = useForm<InsertEvent>({
     resolver: zodResolver(insertEventSchema),
@@ -32,6 +34,24 @@ export function EventModal({ date, onClose }: EventModalProps) {
       startTime: format(date, "yyyy-MM-dd'T'09:00"),
       endTime: format(date, "yyyy-MM-dd'T'17:00"),
       workType: "office",
+    },
+  });
+
+  const attendanceForm = useForm<InsertAttendance>({
+    resolver: zodResolver(insertAttendanceSchema),
+    defaultValues: {
+      date: format(date, "yyyy-MM-dd"),
+      attendanceLog: [],
+    },
+  });
+
+  const taskForm = useForm<InsertTask>({
+    resolver: zodResolver(insertTaskSchema),
+    defaultValues: {
+      title: "",
+      detail: "",
+      dueDate: format(date, "yyyy-MM-dd"),
+      status: "open",
     },
   });
 
@@ -47,6 +67,39 @@ export function EventModal({ date, onClose }: EventModalProps) {
       });
       onClose();
     },
+  });
+
+  const createAttendance = useMutation({
+    mutationFn: async (data: InsertAttendance) => {
+      await apiRequest("POST", "/api/attendance", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
+      toast({
+        title: "勤怠情報を登録しました",
+        description: "勤怠情報が正常に追加されました。",
+      });
+      onClose();
+    },
+  });
+
+  const createTask = useMutation({
+    mutationFn: async (data: InsertTask) => {
+      await apiRequest("POST", "/api/tasks", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      toast({
+        title: "タスクを作成しました",
+        description: "タスクが正常に追加されました。",
+      });
+      onClose();
+    },
+  });
+
+  // プロジェクトリストを取得
+  const { data: projects } = useQuery<Project[]>({
+    queryKey: ["/api/projects"],
   });
 
   return (
@@ -166,7 +219,201 @@ export function EventModal({ date, onClose }: EventModalProps) {
           </motion.div>
         )}
 
-        {/* Attendance and Task forms would go here */}
+        {tab === "attendance" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="space-y-6"
+          >
+            <Form {...attendanceForm}>
+              <form onSubmit={attendanceForm.handleSubmit((data) => {
+                const now = new Date();
+                const timeStr = manualTime || format(now, "HH:mm:ss");
+                const type = document.querySelector<HTMLInputElement>('input[name="attendance-type"]:checked')?.value as "check_in" | "check_out" | "break_start" | "break_end";
+                
+                if (!type) {
+                  toast({
+                    title: "エラー",
+                    description: "勤怠タイプを選択してください。",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                
+                const updatedLog = [
+                  ...(data.attendanceLog || []),
+                  { type, time: timeStr }
+                ];
+                
+                createAttendance.mutate({
+                  ...data,
+                  attendanceLog: updatedLog
+                });
+              })} className="space-y-4">
+                <FormField
+                  control={attendanceForm.control}
+                  name="date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>日付</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <div className="space-y-2">
+                  <FormLabel>時間</FormLabel>
+                  <div className="flex items-center space-x-2">
+                    <Input 
+                      type="time" 
+                      id="manual-time" 
+                      name="manual-time" 
+                      className="w-full"
+                      defaultValue={format(new Date(), "HH:mm")}
+                      onChange={(e) => {
+                        const manualTime = e.target.value + ":00";
+                        setManualTime(manualTime);
+                      }}
+                    />
+                    <div className="text-sm text-gray-500">
+                      現在時刻を使用しない場合は時間を入力してください
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <FormLabel>勤怠タイプ</FormLabel>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center space-x-2">
+                      <input type="radio" id="check-in" name="attendance-type" value="check_in" className="h-4 w-4 text-blue-600" />
+                      <label htmlFor="check-in" className="text-sm font-medium">出勤</label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input type="radio" id="check-out" name="attendance-type" value="check_out" className="h-4 w-4 text-blue-600" />
+                      <label htmlFor="check-out" className="text-sm font-medium">退勤</label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input type="radio" id="break-start" name="attendance-type" value="break_start" className="h-4 w-4 text-blue-600" />
+                      <label htmlFor="break-start" className="text-sm font-medium">休憩開始</label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input type="radio" id="break-end" name="attendance-type" value="break_end" className="h-4 w-4 text-blue-600" />
+                      <label htmlFor="break-end" className="text-sm font-medium">休憩終了</label>
+                    </div>
+                  </div>
+                </div>
+
+                <Button type="submit" className="w-full" disabled={createAttendance.isPending}>
+                  {createAttendance.isPending ? "登録中..." : "勤怠を登録"}
+                </Button>
+              </form>
+            </Form>
+          </motion.div>
+        )}
+
+        {tab === "task" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="space-y-6"
+          >
+            <Form {...taskForm}>
+              <form onSubmit={taskForm.handleSubmit((data) => createTask.mutate(data))} className="space-y-4">
+                <FormField
+                  control={taskForm.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>タスク名</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="タスク名を入力" />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={taskForm.control}
+                  name="detail"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>詳細</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          {...field} 
+                          placeholder="タスクの詳細を入力"
+                          className="min-h-[100px]"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={taskForm.control}
+                  name="dueDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>期限日</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={taskForm.control}
+                  name="tag"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>タグ</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="タグを入力" />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={taskForm.control}
+                  name="projectId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>プロジェクト</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="プロジェクトを選択" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">プロジェクトなし</SelectItem>
+                          {projects?.map((project) => (
+                            <SelectItem key={project.id} value={project.id}>
+                              {project.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )}
+                />
+
+                <Button type="submit" className="w-full" disabled={createTask.isPending}>
+                  {createTask.isPending ? "作成中..." : "タスクを作成"}
+                </Button>
+              </form>
+            </Form>
+          </motion.div>
+        )}
       </DialogContent>
     </Dialog>
   );

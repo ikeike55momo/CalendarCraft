@@ -17,8 +17,8 @@ interface DayCellProps {
   tasks: Task[];
   attendance?: Attendance;
   isLoading: boolean;
-  isTeamView: boolean;
-  onClick: () => void;
+  view: "personal" | "team";
+  onSelect: () => void;
 }
 
 export function DayCell({
@@ -28,12 +28,12 @@ export function DayCell({
   tasks,
   attendance,
   isLoading,
-  isTeamView,
-  onClick,
+  view,
+  onSelect,
 }: DayCellProps) {
   if (isLoading) {
     return (
-      <div className="min-h-[140px] bg-white/20 p-4">
+      <div className="min-h-[140px] md:min-h-[160px] lg:min-h-[180px] bg-white/20 p-4">
         <Skeleton className="h-8 w-8 rounded-full" />
         <div className="mt-3 space-y-2">
           <Skeleton className="h-4 w-full" />
@@ -44,25 +44,22 @@ export function DayCell({
   }
 
   const isToday = format(date, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+  const isTeamView = view === "team";
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
           <motion.div
-            whileHover={{ scale: 0.98 }}
-            onClick={onClick}
+            whileHover={{ scale: 1.02 }}
             className={`
-              min-h-[140px] p-4 cursor-pointer transition-all
-              ${isCurrentMonth 
-                ? "bg-gradient-to-br from-white to-blue-50/30" 
-                : "bg-gradient-to-br from-gray-50/80 to-gray-50/30"}
-              ${isToday 
-                ? "ring-2 ring-blue-400 ring-inset bg-gradient-to-br from-blue-50 to-indigo-50/30" 
-                : ""}
-              hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50/50
-              relative overflow-hidden
+              h-32 md:h-36 lg:h-40 p-2 
+              ${isCurrentMonth ? "bg-white/80" : "bg-gray-50/50"} 
+              ${isToday ? "ring-2 ring-blue-400 ring-inset" : ""}
+              hover:bg-blue-50/80 transition-colors cursor-pointer
+              overflow-hidden
             `}
+            onClick={onSelect}
           >
             {/* 日付表示 */}
             <div className={`

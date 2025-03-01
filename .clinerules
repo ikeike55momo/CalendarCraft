@@ -1,0 +1,64 @@
+{
+  // CLI上でのコマンド出力やサジェスト時のルール設定
+  "cliBehavior": {
+    "promptPrefix": "[Wado Team Scheduler CLI]>",
+    "exitCommand": "exit",
+    "helpCommand": "help"
+  },
+
+  // システムメッセージのガイドライン
+  "systemMessages": {
+    "welcome": "Welcome to the Wado Team Scheduler CLI. Type 'help' for available commands.",
+    "invalidCommand": "Command not recognized. Type 'help' to see the list of commands."
+  },
+
+  // 主要コマンドの定義例
+  "commands": [
+    {
+      "name": "importSheet",
+      "description": "Google Sheets からデータをインポートする",
+      "options": [
+        {
+          "flag": "--manual",
+          "description": "手動インポート実行"
+        }
+      ]
+    },
+    {
+      "name": "exportCalendar",
+      "description": "Google カレンダーへ連携(エクスポート)する",
+      "options": [
+        {
+          "flag": "--range",
+          "description": "エクスポートする日数を指定 (default: 20)"
+        }
+      ]
+    },
+    {
+      "name": "listProjects",
+      "description": "登録されているプロジェクトを一覧表示"
+    },
+    {
+      "name": "listTasks",
+      "description": "登録されているタスクを一覧表示",
+      "options": [
+        {
+          "flag": "--status",
+          "description": "タスクのステータス(open/done)を指定して絞り込み"
+        }
+      ]
+    }
+  ],
+
+  // コマンド実行時のバリデーションルール例
+  "validation": {
+    "maxExportDays": 30,
+    "minExportDays": 1
+  },
+
+  // ヘルプのテンプレート
+  "helpTemplate": {
+    "header": "=======================\nWado Team Scheduler CLI\n=======================",
+    "footer": "For more information, please refer to project documentation."
+  }
+}

@@ -33,10 +33,10 @@ export function CalendarGrid({
   return (
     <motion.div
       layout
-      className="grid grid-cols-7 divide-x divide-y divide-blue-100/20 bg-gradient-to-br from-white via-blue-50/10 to-indigo-50/10"
+      className="grid grid-cols-7 divide-x divide-y divide-blue-100/20 bg-gradient-to-br from-white via-blue-50/10 to-indigo-50/10 rounded-lg shadow-sm border border-blue-100/50"
     >
       {paddedDays.map((_, i) => (
-        <div key={`pad-${i}`} className="bg-gradient-to-br from-gray-50/30 to-gray-50/10 h-32" />
+        <div key={`pad-${i}`} className="bg-gradient-to-br from-gray-50/30 to-gray-50/10 h-32 md:h-36 lg:h-40" />
       ))}
 
       {days.map((day) => (
@@ -48,8 +48,8 @@ export function CalendarGrid({
           tasks={tasks.filter(t => t.dueDate && format(new Date(t.dueDate), "yyyy-MM-dd") === format(day, "yyyy-MM-dd"))}
           attendance={attendance.find(a => format(new Date(a.date), "yyyy-MM-dd") === format(day, "yyyy-MM-dd"))}
           isLoading={isLoading}
-          isTeamView={view === "team"}
-          onClick={() => onDateSelect(day)}
+          onSelect={() => onDateSelect(day)}
+          view={view}
         />
       ))}
     </motion.div>
