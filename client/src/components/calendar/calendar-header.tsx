@@ -17,37 +17,37 @@ export function CalendarHeader({
   onViewChange,
 }: CalendarHeaderProps) {
   return (
-    <div className="px-6 pt-6 pb-4 border-b border-blue-100/30">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 bg-blue-50/50 rounded-lg p-1">
+    <div className="px-6 pt-8 pb-6">
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-1.5">
             <Button
               variant="ghost"
               size="icon"
-              className="hover:bg-blue-100/50 hover:text-blue-600 transition-colors"
+              className="hover:bg-white hover:text-blue-600 transition-all duration-300 rounded-lg"
               onClick={() => onMonthChange(subMonths(currentMonth, 1))}
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-5 w-5" />
             </Button>
             <Button
               variant="ghost"
               size="icon"
-              className="hover:bg-blue-100/50 hover:text-blue-600 transition-colors"
+              className="hover:bg-white hover:text-blue-600 transition-all duration-300 rounded-lg"
               onClick={() => onMonthChange(addMonths(currentMonth, 1))}
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-5 w-5" />
             </Button>
           </div>
 
-          <div className="flex items-center gap-2 bg-blue-50/50 rounded-lg p-1">
+          <div className="flex items-center gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-1.5">
             <Button
               variant={view === "personal" ? "default" : "ghost"}
               size="sm"
               onClick={() => onViewChange("personal")}
-              className={`gap-2 transition-all duration-300 ${
+              className={`gap-2 transition-all duration-300 rounded-lg ${
                 view === "personal" 
-                  ? "bg-white shadow-md" 
-                  : "hover:bg-blue-100/50 hover:text-blue-600"
+                  ? "bg-white shadow-lg shadow-blue-200/50" 
+                  : "hover:bg-white/50 hover:text-blue-600"
               }`}
             >
               <User className="h-4 w-4" />
@@ -57,10 +57,10 @@ export function CalendarHeader({
               variant={view === "team" ? "default" : "ghost"}
               size="sm"
               onClick={() => onViewChange("team")}
-              className={`gap-2 transition-all duration-300 ${
+              className={`gap-2 transition-all duration-300 rounded-lg ${
                 view === "team" 
-                  ? "bg-white shadow-md" 
-                  : "hover:bg-blue-100/50 hover:text-blue-600"
+                  ? "bg-white shadow-lg shadow-blue-200/50" 
+                  : "hover:bg-white/50 hover:text-blue-600"
               }`}
             >
               <Users className="h-4 w-4" />
@@ -70,13 +70,13 @@ export function CalendarHeader({
         </div>
       </div>
 
-      <div className="grid grid-cols-7 text-center">
+      <div className="grid grid-cols-7 text-center border-b border-indigo-100/30">
         {["日", "月", "火", "水", "木", "金", "土"].map((day, i) => (
           <div
             key={day}
-            className={`text-sm font-medium py-2 ${
-              i === 0 ? "text-red-500" : 
-              i === 6 ? "text-blue-500" : 
+            className={`text-sm font-medium py-3 ${
+              i === 0 ? "text-rose-500" : 
+              i === 6 ? "text-indigo-500" : 
               "text-gray-600"
             }`}
           >
