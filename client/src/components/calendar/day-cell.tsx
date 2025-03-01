@@ -28,7 +28,7 @@ export function DayCell({
 }: DayCellProps) {
   if (isLoading) {
     return (
-      <div className="min-h-[120px] bg-white/50 p-2">
+      <div className="min-h-[120px] bg-white/20 p-2">
         <Skeleton className="h-6 w-6 rounded-full" />
         <div className="mt-2 space-y-2">
           <Skeleton className="h-4 w-full" />
@@ -46,9 +46,9 @@ export function DayCell({
       onClick={onClick}
       className={`
         min-h-[120px] p-2 cursor-pointer transition-all
-        ${isCurrentMonth ? "bg-white/50" : "bg-gray-50/50"}
-        ${isToday ? "ring-2 ring-blue-500 ring-offset-2" : ""}
-        hover:bg-blue-50/50
+        ${isCurrentMonth ? "bg-white/30" : "bg-gray-50/20"}
+        ${isToday ? "ring-1 ring-blue-400 ring-offset-1" : ""}
+        hover:bg-blue-50/30
       `}
     >
       <div className={`
@@ -69,8 +69,8 @@ export function DayCell({
                 className={`
                   flex items-center gap-1 text-xs p-1 rounded
                   ${event.workType === "office"
-                    ? "bg-blue-100/50 text-blue-700"
-                    : "bg-green-100/50 text-green-700"
+                    ? "bg-blue-100/40 text-blue-700"
+                    : "bg-green-100/40 text-green-700"
                   }
                 `}
               >
@@ -95,7 +95,7 @@ export function DayCell({
         ))}
 
         {attendance && (
-          <div className="flex items-center gap-1 text-xs text-gray-600 bg-gray-100/50 p-1 rounded">
+          <div className="flex items-center gap-1 text-xs text-gray-600 bg-gray-100/30 p-1 rounded">
             <Clock className="h-3 w-3" />
             <span>
               {attendance.attendanceLog?.[0]?.time &&
@@ -105,7 +105,7 @@ export function DayCell({
         )}
 
         {tasks.length > 0 && (
-          <div className="text-xs text-gray-600 bg-purple-100/50 text-purple-700 p-1 rounded">
+          <div className="text-xs text-purple-700 bg-purple-100/30 p-1 rounded">
             {tasks.length} task{tasks.length > 1 ? "s" : ""}
           </div>
         )}
