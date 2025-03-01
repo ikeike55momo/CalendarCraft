@@ -17,6 +17,7 @@ export const events = pgTable("events", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: serial("user_id").references(() => users.id),
   title: text("title").notNull(),
+  description: text("description"),  // Added description field
   startTime: timestamp("start_time").notNull(),
   endTime: timestamp("end_time").notNull(),
   workType: text("work_type").notNull(), // "office" | "remote"
@@ -66,7 +67,6 @@ export const projectMembers = pgTable("project_members", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-// Insert schemas
 export const insertEventSchema = createInsertSchema(events).omit({ 
   id: true,
   createdAt: true,
@@ -85,7 +85,6 @@ export const insertAttendanceSchema = createInsertSchema(attendance).omit({
   updatedAt: true
 });
 
-// Types
 export type User = typeof users.$inferSelect;
 export type Event = typeof events.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
