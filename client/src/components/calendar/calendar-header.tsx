@@ -39,15 +39,15 @@ export function CalendarHeader({
             </Button>
           </div>
 
-          <div className="flex items-center gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-1.5">
+          <div className="flex items-center gap-2 bg-white rounded-xl p-1.5 shadow-md">
             <Button
               variant={view === "personal" ? "default" : "ghost"}
               size="sm"
               onClick={() => onViewChange("personal")}
               className={`gap-2 transition-all duration-300 rounded-lg ${
                 view === "personal" 
-                  ? "bg-white shadow-lg shadow-blue-200/50" 
-                  : "hover:bg-white/50 hover:text-blue-600"
+                  ? "bg-blue-500 text-white shadow-lg shadow-blue-200/50" 
+                  : "hover:bg-blue-50 hover:text-blue-600 text-gray-700"
               }`}
             >
               <User className="h-4 w-4" />
@@ -59,8 +59,8 @@ export function CalendarHeader({
               onClick={() => onViewChange("team")}
               className={`gap-2 transition-all duration-300 rounded-lg ${
                 view === "team" 
-                  ? "bg-white shadow-lg shadow-blue-200/50" 
-                  : "hover:bg-white/50 hover:text-blue-600"
+                  ? "bg-blue-500 text-white shadow-lg shadow-blue-200/50" 
+                  : "hover:bg-blue-50 hover:text-blue-600 text-gray-700"
               }`}
             >
               <Users className="h-4 w-4" />
