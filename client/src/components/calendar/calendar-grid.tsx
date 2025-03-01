@@ -33,10 +33,10 @@ export function CalendarGrid({
   return (
     <motion.div
       layout
-      className="grid grid-cols-7 divide-x divide-y divide-blue-100/30"
+      className="grid grid-cols-7 divide-x divide-y divide-blue-100/20 bg-gradient-to-br from-white via-blue-50/10 to-indigo-50/10"
     >
       {paddedDays.map((_, i) => (
-        <div key={`pad-${i}`} className="bg-gray-50/50 h-32" />
+        <div key={`pad-${i}`} className="bg-gradient-to-br from-gray-50/30 to-gray-50/10 h-32" />
       ))}
 
       {days.map((day) => (

@@ -34,7 +34,7 @@ export function DayCell({
   if (isLoading) {
     return (
       <div className="min-h-[140px] bg-white/20 p-4">
-        <Skeleton className="h-10 w-10 rounded-full" />
+        <Skeleton className="h-8 w-8 rounded-full" />
         <div className="mt-3 space-y-2">
           <Skeleton className="h-4 w-full" />
           <Skeleton className="h-4 w-2/3" />
@@ -54,45 +54,52 @@ export function DayCell({
             onClick={onClick}
             className={`
               min-h-[140px] p-4 cursor-pointer transition-all
-              ${isCurrentMonth ? "bg-white" : "bg-gray-50/50"}
-              ${isToday ? "ring-2 ring-blue-400 ring-inset" : ""}
-              hover:bg-blue-50/80
+              ${isCurrentMonth 
+                ? "bg-gradient-to-br from-white to-blue-50/30" 
+                : "bg-gradient-to-br from-gray-50/80 to-gray-50/30"}
+              ${isToday 
+                ? "ring-2 ring-blue-400 ring-inset bg-gradient-to-br from-blue-50 to-indigo-50/30" 
+                : ""}
+              hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50/50
+              relative overflow-hidden
             `}
           >
+            {/* 日付表示 */}
             <div className={`
-              text-3xl font-bold mb-3
+              text-2xl font-bold mb-3 relative z-10
               ${isCurrentMonth ? "text-gray-900" : "text-gray-400"}
               ${isToday ? "text-blue-500" : ""}
             `}>
               {format(date, "d")}
             </div>
 
-            <div className="space-y-2">
+            {/* イベントリスト */}
+            <div className="space-y-1.5 relative z-10">
               {events.map((event) => (
                 <motion.div
                   key={event.id}
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
                   className={`
-                    flex items-center gap-2 text-sm p-1.5 rounded-lg
+                    flex items-center gap-2 text-xs p-1.5 rounded-lg
                     ${event.workType === "office"
-                      ? "bg-blue-100/60 text-blue-700"
-                      : "bg-green-100/60 text-green-700"
+                      ? "bg-gradient-to-r from-blue-100/80 to-blue-50/80 text-blue-700"
+                      : "bg-gradient-to-r from-green-100/80 to-green-50/80 text-green-700"
                     }
                   `}
                 >
                   {event.workType === "office" ? (
-                    <MapPin className="h-4 w-4" />
+                    <MapPin className="h-3 w-3" />
                   ) : (
-                    <Home className="h-4 w-4" />
+                    <Home className="h-3 w-3" />
                   )}
                   <span className="truncate font-medium">{event.title}</span>
                 </motion.div>
               ))}
 
               {attendance && (
-                <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-100/60 p-1.5 rounded-lg">
-                  <Clock className="h-4 w-4" />
+                <div className="flex items-center gap-2 text-xs text-gray-600 bg-gradient-to-r from-gray-100/80 to-gray-50/80 p-1.5 rounded-lg">
+                  <Clock className="h-3 w-3" />
                   <span className="font-medium">
                     {attendance.attendanceLog?.[0]?.time &&
                       format(new Date(attendance.attendanceLog[0].time), "HH:mm")}
@@ -101,11 +108,16 @@ export function DayCell({
               )}
 
               {tasks.length > 0 && (
-                <div className="text-sm font-medium text-purple-700 bg-purple-100/60 p-1.5 rounded-lg">
+                <div className="text-xs font-medium text-purple-700 bg-gradient-to-r from-purple-100/80 to-purple-50/80 p-1.5 rounded-lg">
                   {tasks.length} タスク
                 </div>
               )}
             </div>
+
+            {/* 装飾的な背景要素 */}
+            {isToday && (
+              <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-blue-200/20 to-transparent rounded-bl-full" />
+            )}
           </motion.div>
         </TooltipTrigger>
         <TooltipContent side="right" className="p-4 max-w-[300px]">
