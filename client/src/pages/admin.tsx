@@ -91,17 +91,15 @@ export default function AdminPage() {
     setLoadingPendingUsers(true);
     try {
       // 登録済みユーザーのGoogle Sub IDを取得
-      const response = await fetch(`${supabaseUrl}/rest/v1/users`, {
-        method: 'GET',
-        headers: getAdminApiHeaders()
-      });
+      const { data: registeredUsers, error: usersError } = await supabase
+        .from('users')
+        .select('*');
       
-      if (!response.ok) {
-        throw new Error(`ユーザー一覧取得エラー: ${response.statusText}`);
+      if (usersError) {
+        throw new Error(`ユーザー一覧取得エラー: ${usersError.message}`);
       }
       
-      const registeredUsers = await response.json();
-      const registeredUserIds = registeredUsers.map((u: any) => u.google_sub).filter(Boolean);
+      const registeredUserIds = registeredUsers?.map((u: any) => u.google_sub).filter(Boolean) || [];
       
       // 現在のセッションから自分自身の情報を取得
       const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -213,34 +211,34 @@ export default function AdminPage() {
 
       // メールアドレスが入力されている場合、メールアドレスで既存ユーザーを検索
       if (email) {
-        const emailResponse = await fetch(`${supabaseUrl}/rest/v1/users?email=eq.${encodeURIComponent(email)}`, {
-          method: 'GET',
-          headers: getAdminApiHeaders()
-        });
+        const { data: existingUsers, error: emailError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', email)
+          .limit(1);
         
-        if (!emailResponse.ok) {
-          throw new Error(`メールアドレス検索エラー: ${emailResponse.statusText}`);
+        if (emailError) {
+          throw new Error(`メールアドレス検索エラー: ${emailError.message}`);
         }
         
-        const existingUsers = await emailResponse.json();
-        if (existingUsers.length > 0) {
+        if (existingUsers && existingUsers.length > 0) {
           existingUser = existingUsers[0];
         }
       }
 
       // メールアドレスで見つからず、シート名が入力されている場合はシート名で検索
       if (!existingUser && sheetName) {
-        const sheetNameResponse = await fetch(`${supabaseUrl}/rest/v1/users?sheet_name=eq.${encodeURIComponent(sheetName)}`, {
-          method: 'GET',
-          headers: getAdminApiHeaders()
-        });
+        const { data: existingUsersBySheet, error: sheetError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('sheet_name', sheetName)
+          .limit(1);
         
-        if (!sheetNameResponse.ok) {
-          throw new Error(`シート名検索エラー: ${sheetNameResponse.statusText}`);
+        if (sheetError) {
+          throw new Error(`シート名検索エラー: ${sheetError.message}`);
         }
         
-        const existingUsersBySheet = await sheetNameResponse.json();
-        if (existingUsersBySheet.length > 0) {
+        if (existingUsersBySheet && existingUsersBySheet.length > 0) {
           existingUser = existingUsersBySheet[0];
         }
       }
@@ -262,18 +260,13 @@ export default function AdminPage() {
           updateData.google_sub = googleSub;
         }
 
-        const updateResponse = await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${existingUser.id}`, {
-          method: 'PATCH',
-          headers: {
-            ...getAdminApiHeaders(),
-            'Prefer': 'return=minimal'
-          },
-          body: JSON.stringify(updateData)
-        });
+        const { error: updateError } = await supabase
+          .from('users')
+          .update(updateData)
+          .eq('id', existingUser.id);
 
-        if (!updateResponse.ok) {
-          const errorText = await updateResponse.text();
-          throw new Error(`更新エラー: ${updateResponse.statusText} - ${errorText}`);
+        if (updateError) {
+          throw new Error(`更新エラー: ${updateError.message}`);
         }
 
         toast({
@@ -296,18 +289,12 @@ export default function AdminPage() {
           userData.google_sub = googleSub;
         }
 
-        const insertResponse = await fetch(`${supabaseUrl}/rest/v1/users`, {
-          method: 'POST',
-          headers: {
-            ...getAdminApiHeaders(),
-            'Prefer': 'return=minimal'
-          },
-          body: JSON.stringify(userData)
-        });
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert([userData]);
 
-        if (!insertResponse.ok) {
-          const errorText = await insertResponse.text();
-          throw new Error(`登録エラー: ${insertResponse.statusText} - ${errorText}`);
+        if (insertError) {
+          throw new Error(`登録エラー: ${insertError.message}`);
         }
 
         toast({
@@ -353,24 +340,18 @@ export default function AdminPage() {
     setLoading(true);
     try {
       // 新規ユーザーの登録
-      const insertResponse = await fetch(`${supabaseUrl}/rest/v1/users`, {
-        method: 'POST',
-        headers: {
-          ...getAdminApiHeaders(),
-          'Prefer': 'return=minimal'
-        },
-        body: JSON.stringify({
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert([{
           google_sub: pendingUser.id,
           name: pendingUser.name,
           email: pendingUser.email,
           sheet_name: pendingUser.email.split('@')[0],
           role: 'member'
-        })
-      });
+        }]);
 
-      if (!insertResponse.ok) {
-        const errorText = await insertResponse.text();
-        throw new Error(`承認エラー: ${insertResponse.statusText} - ${errorText}`);
+      if (insertError) {
+        throw new Error(`承認エラー: ${insertError.message}`);
       }
 
       toast({
