@@ -290,6 +290,11 @@ export default function AdminPage() {
         } else if (isPreRegistration) {
           // 事前登録モードの場合は一時的なプレースホルダーを設定
           userData.google_sub = 'pre_registered_' + Date.now();
+          
+          // メールアドレスが入力されていない場合はデフォルト値を設定
+          if (!email) {
+            userData.email = `pre_registered_${Date.now()}@example.com`;
+          }
         }
 
         const { error: insertError } = await supabase
