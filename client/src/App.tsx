@@ -11,6 +11,7 @@ import Admin from "@/pages/admin";
 import Attendance from "@/pages/attendance";
 import NotFound from "@/pages/not-found";
 import WaitingApproval from "@/pages/waiting-approval";
+import AuthCallback from "@/pages/auth-callback";
 import { supabase, setupAuthListener } from "@/lib/supabase";
 import { Session, User } from "@supabase/supabase-js";
 
@@ -159,6 +160,7 @@ function Router() {
         <Route path="/attendance" component={Attendance} />
         <Route path="/admin" component={Admin} />
         <Route path="/waiting-approval" component={WaitingApproval} />
+        <Route path="/auth/callback" component={AuthCallback} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
