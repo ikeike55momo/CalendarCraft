@@ -75,4 +75,18 @@ export const getCurrentUser = async () => {
   }
   
   return data.user;
-}; 
+};
+
+// サービスロールクライアント（管理者操作用）
+// 注意: このクライアントはサーバーサイドでのみ使用するべきです
+// クライアントサイドでの使用は緊急措置として、本番環境では適切なバックエンド実装に置き換えてください
+export const getAdminApiHeaders = () => {
+  return {
+    'apikey': supabaseAnonKey,
+    'Authorization': `Bearer ${supabaseAnonKey}`,
+    'Content-Type': 'application/json'
+  };
+};
+
+// URLをエクスポート
+export { supabaseUrl }; 

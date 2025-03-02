@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase, getAdminApiHeaders, supabaseUrl } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -91,13 +91,9 @@ export default function AdminPage() {
     setLoadingPendingUsers(true);
     try {
       // 登録済みユーザーのGoogle Sub IDを取得
-      const response = await fetch(`${supabase.supabaseUrl}/rest/v1/users`, {
+      const response = await fetch(`${supabaseUrl}/rest/v1/users`, {
         method: 'GET',
-        headers: {
-          'apikey': supabase.supabaseKey,
-          'Authorization': `Bearer ${supabase.supabaseKey}`,
-          'Content-Type': 'application/json'
-        }
+        headers: getAdminApiHeaders()
       });
       
       if (!response.ok) {
@@ -217,13 +213,9 @@ export default function AdminPage() {
 
       // メールアドレスが入力されている場合、メールアドレスで既存ユーザーを検索
       if (email) {
-        const emailResponse = await fetch(`${supabase.supabaseUrl}/rest/v1/users?email=eq.${encodeURIComponent(email)}`, {
+        const emailResponse = await fetch(`${supabaseUrl}/rest/v1/users?email=eq.${encodeURIComponent(email)}`, {
           method: 'GET',
-          headers: {
-            'apikey': supabase.supabaseKey,
-            'Authorization': `Bearer ${supabase.supabaseKey}`,
-            'Content-Type': 'application/json'
-          }
+          headers: getAdminApiHeaders()
         });
         
         if (!emailResponse.ok) {
@@ -238,13 +230,9 @@ export default function AdminPage() {
 
       // メールアドレスで見つからず、シート名が入力されている場合はシート名で検索
       if (!existingUser && sheetName) {
-        const sheetNameResponse = await fetch(`${supabase.supabaseUrl}/rest/v1/users?sheet_name=eq.${encodeURIComponent(sheetName)}`, {
+        const sheetNameResponse = await fetch(`${supabaseUrl}/rest/v1/users?sheet_name=eq.${encodeURIComponent(sheetName)}`, {
           method: 'GET',
-          headers: {
-            'apikey': supabase.supabaseKey,
-            'Authorization': `Bearer ${supabase.supabaseKey}`,
-            'Content-Type': 'application/json'
-          }
+          headers: getAdminApiHeaders()
         });
         
         if (!sheetNameResponse.ok) {
@@ -274,12 +262,10 @@ export default function AdminPage() {
           updateData.google_sub = googleSub;
         }
 
-        const updateResponse = await fetch(`${supabase.supabaseUrl}/rest/v1/users?id=eq.${existingUser.id}`, {
+        const updateResponse = await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${existingUser.id}`, {
           method: 'PATCH',
           headers: {
-            'apikey': supabase.supabaseKey,
-            'Authorization': `Bearer ${supabase.supabaseKey}`,
-            'Content-Type': 'application/json',
+            ...getAdminApiHeaders(),
             'Prefer': 'return=minimal'
           },
           body: JSON.stringify(updateData)
@@ -310,12 +296,10 @@ export default function AdminPage() {
           userData.google_sub = googleSub;
         }
 
-        const insertResponse = await fetch(`${supabase.supabaseUrl}/rest/v1/users`, {
+        const insertResponse = await fetch(`${supabaseUrl}/rest/v1/users`, {
           method: 'POST',
           headers: {
-            'apikey': supabase.supabaseKey,
-            'Authorization': `Bearer ${supabase.supabaseKey}`,
-            'Content-Type': 'application/json',
+            ...getAdminApiHeaders(),
             'Prefer': 'return=minimal'
           },
           body: JSON.stringify(userData)
@@ -369,12 +353,10 @@ export default function AdminPage() {
     setLoading(true);
     try {
       // 新規ユーザーの登録
-      const insertResponse = await fetch(`${supabase.supabaseUrl}/rest/v1/users`, {
+      const insertResponse = await fetch(`${supabaseUrl}/rest/v1/users`, {
         method: 'POST',
         headers: {
-          'apikey': supabase.supabaseKey,
-          'Authorization': `Bearer ${supabase.supabaseKey}`,
-          'Content-Type': 'application/json',
+          ...getAdminApiHeaders(),
           'Prefer': 'return=minimal'
         },
         body: JSON.stringify({
