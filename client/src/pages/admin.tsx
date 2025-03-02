@@ -287,6 +287,9 @@ export default function AdminPage() {
         // 事前登録モードでない場合のみGoogle Sub IDを設定
         if (!isPreRegistration && googleSub) {
           userData.google_sub = googleSub;
+        } else if (isPreRegistration) {
+          // 事前登録モードの場合は一時的なプレースホルダーを設定
+          userData.google_sub = 'pre_registered_' + Date.now();
         }
 
         const { error: insertError } = await supabase
