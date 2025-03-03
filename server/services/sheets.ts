@@ -16,10 +16,24 @@ export class GoogleSheetsService {
 
   constructor() {
     // Google Sheets APIの設定
-    const auth = new google.auth.GoogleAuth({
-      keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS,
-      scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-    });
+    let auth;
+    
+    if (process.env.GOOGLE_CREDENTIALS_JSON) {
+      // 環境変数からJSONを直接読み込む
+      const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+      auth = new google.auth.GoogleAuth({
+        credentials,
+        scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+      });
+    } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+      // 従来の方法（ファイルパス）
+      auth = new google.auth.GoogleAuth({
+        keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+        scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+      });
+    } else {
+      throw new Error('Google認証情報が設定されていません。GOOGLE_CREDENTIALS_JSONまたはGOOGLE_APPLICATION_CREDENTIALSを設定してください。');
+    }
 
     this.sheets = google.sheets({ version: "v4", auth });
   }
