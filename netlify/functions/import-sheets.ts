@@ -1,6 +1,5 @@
 import { Handler } from '@netlify/functions';
 import { GoogleSheetsService } from '../../server/services/sheets';
-import { supabase } from '../../client/src/lib/supabase';
 
 const handler: Handler = async (event) => {
   // CORSヘッダーを設定
@@ -30,14 +29,24 @@ const handler: Handler = async (event) => {
   }
 
   try {
-    // リクエストボディからスプレッドシートIDと範囲を取得
-    const { spreadsheetId, range } = JSON.parse(event.body || '{}');
+    // 環境変数のデバッグ情報
+    const envDebug = {
+      hasGoogleCredentialsJson: !!process.env.GOOGLE_CREDENTIALS_JSON,
+      hasGoogleApplicationCredentials: !!process.env.GOOGLE_APPLICATION_CREDENTIALS,
+      nodeEnv: process.env.NODE_ENV
+    };
+
+    // リクエストボディからパラメータを取得
+    const { spreadsheetId, sheetName } = JSON.parse(event.body || '{}');
     
-    if (!spreadsheetId || !range) {
+    if (!spreadsheetId || !sheetName) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'スプレッドシートIDと範囲が必要です' }),
+        body: JSON.stringify({ 
+          error: 'スプレッドシートIDとシート名が必要です',
+          debug: envDebug
+        }),
       };
     }
     
@@ -45,62 +54,44 @@ const handler: Handler = async (event) => {
     const sheetsService = new GoogleSheetsService();
     
     // スプレッドシートからデータを取得
-    const sheetEvents = await sheetsService.getScheduleData(spreadsheetId, range);
+    const range = `${sheetName}!A:G`;  // 範囲を指定（A列からG列まで）
+    const events = await sheetsService.getScheduleData(spreadsheetId, range);
     
-    if (sheetEvents.length === 0) {
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({ 
-          message: 'インポートするデータがありません', 
-          count: 0 
-        }),
-      };
-    }
-    
-    // シートイベントをInsertEvent形式に変換
-    const insertEvents = sheetsService.convertToInsertEvents(sheetEvents);
-    
-    // インポートしたデータをDBに保存
-    let importedCount = 0;
-    
-    for (const event of insertEvents) {
-      // Supabaseにイベントを挿入
-      const { error } = await supabase
-        .from('events')
-        .insert([{
-          user_id: event.userId,
-          title: event.title,
-          start_time: event.startTime,
-          end_time: event.endTime,
-          work_type: event.workType
-        }]);
-      
-      if (error) {
-        console.error('Event insert error:', error);
-        continue;
-      }
-      
-      importedCount++;
-    }
+    // イベントデータをカレンダー用に変換
+    const calendarEvents = sheetsService.convertToInsertEvents(events);
     
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({ 
-        message: 'スプレッドシートからデータをインポートしました', 
-        count: importedCount 
+        events: calendarEvents,
+        count: calendarEvents.length,
+        debug: envDebug
       }),
     };
   } catch (error) {
     console.error('スプレッドシートインポートエラー:', error);
     
+    // エラー情報を詳細に取得
+    const errorDetails = error instanceof Error 
+      ? { 
+          message: error.message, 
+          stack: error.stack,
+          name: error.name
+        } 
+      : 'Unknown error';
+    
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
-        error: 'インポート中にエラーが発生しました', 
-        details: error instanceof Error ? error.message : 'Unknown error'
+        error: 'スプレッドシートのインポート中にエラーが発生しました',
+        details: errorDetails,
+        debug: {
+          hasGoogleCredentialsJson: !!process.env.GOOGLE_CREDENTIALS_JSON,
+          hasGoogleApplicationCredentials: !!process.env.GOOGLE_APPLICATION_CREDENTIALS,
+          nodeEnv: process.env.NODE_ENV
+        }
       }),
     };
   }
