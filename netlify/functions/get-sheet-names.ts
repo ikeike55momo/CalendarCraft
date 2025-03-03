@@ -2,10 +2,28 @@ import { Handler } from '@netlify/functions';
 import { GoogleSheetsService } from '../../server/services/sheets';
 
 const handler: Handler = async (event) => {
+  // CORSヘッダーを設定
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Content-Type': 'application/json'
+  };
+
+  // OPTIONSリクエスト（プリフライトリクエスト）への対応
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers,
+      body: ''
+    };
+  }
+
   // POSTリクエストのみ許可
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
+      headers,
       body: JSON.stringify({ error: 'Method Not Allowed' }),
     };
   }
@@ -17,6 +35,7 @@ const handler: Handler = async (event) => {
     if (!spreadsheetId) {
       return {
         statusCode: 400,
+        headers,
         body: JSON.stringify({ error: 'スプレッドシートIDが必要です' }),
       };
     }
@@ -29,6 +48,7 @@ const handler: Handler = async (event) => {
     
     return {
       statusCode: 200,
+      headers,
       body: JSON.stringify({ sheetNames }),
     };
   } catch (error) {
@@ -36,6 +56,7 @@ const handler: Handler = async (event) => {
     
     return {
       statusCode: 500,
+      headers,
       body: JSON.stringify({ 
         error: 'シート名の取得中にエラーが発生しました',
         details: error instanceof Error ? error.message : 'Unknown error'

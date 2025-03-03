@@ -72,10 +72,8 @@ const SpreadsheetImport: React.FC = () => {
 
     setLoading(true);
     try {
-      const range = `${selectedSheet}!A2:E`; // ヘッダーを除く範囲
-      
       const { data, error } = await supabase.functions.invoke('import-sheets', {
-        body: { spreadsheetId, range }
+        body: { spreadsheetId, sheetName: selectedSheet }
       });
 
       if (error) throw error;
