@@ -15,7 +15,7 @@ export function useAuth(): AuthState {
 
   useEffect(() => {
     // 初期セッションの取得
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
       setSession(session);
       setIsLoading(false);
     });

@@ -13,29 +13,42 @@ interface SheetEvent {
 
 export class GoogleSheetsService {
   private sheets: any;
+  private auth: any;
+  private useMock: boolean = false; // モックモードフラグを初期化
 
   constructor() {
-    // Google Sheets APIの設定
-    let auth;
-    
-    if (process.env.GOOGLE_CREDENTIALS_JSON) {
-      // 環境変数からJSONを直接読み込む
-      const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
-      auth = new google.auth.GoogleAuth({
-        credentials,
-        scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-      });
-    } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-      // 従来の方法（ファイルパス）
-      auth = new google.auth.GoogleAuth({
-        keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS,
-        scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-      });
-    } else {
-      throw new Error('Google認証情報が設定されていません。GOOGLE_CREDENTIALS_JSONまたはGOOGLE_APPLICATION_CREDENTIALSを設定してください。');
+    // 環境変数からGoogle認証情報を取得
+    const credentialsJson = process.env.GOOGLE_CREDENTIALS_JSON;
+    const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+
+    if (!credentialsJson && !credentialsPath) {
+      // 開発環境用: 認証情報がない場合はモックモードで動作
+      console.warn('警告: Google認証情報が設定されていません。モックデータを使用します。');
+      this.useMock = true;
+      return;
     }
 
-    this.sheets = google.sheets({ version: "v4", auth });
+    // 認証情報の設定
+    try {
+      if (credentialsJson) {
+        // JSON文字列から認証情報を設定
+        const credentials = JSON.parse(credentialsJson);
+        this.auth = new google.auth.GoogleAuth({
+          credentials,
+          scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+        });
+      } else if (credentialsPath) {
+        // ファイルパスから認証情報を設定
+        this.auth = new google.auth.GoogleAuth({
+          keyFile: credentialsPath,
+          scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+        });
+      }
+      this.sheets = google.sheets({ version: "v4", auth: this.auth });
+    } catch (error) {
+      console.error('Google認証情報の設定エラー:', error);
+      this.useMock = true;
+    }
   }
 
   private cleanMemberName(name: string): string {
@@ -43,6 +56,12 @@ export class GoogleSheetsService {
   }
 
   async getScheduleData(spreadsheetId: string, range: string): Promise<SheetEvent[]> {
+    // モックモードの場合はダミーデータを返す
+    if (this.useMock) {
+      console.log('モックモードでスケジュールデータを返します');
+      return this.getMockScheduleData();
+    }
+
     try {
       console.log(`シートデータを取得: ${range}`);
       const response = await this.sheets.spreadsheets.values.get({
@@ -124,20 +143,29 @@ export class GoogleSheetsService {
     return events;
   }
 
-  // シート名の一覧を取得
+  // シート名一覧の取得
   async getSheetNames(spreadsheetId: string): Promise<string[]> {
+    // モックモードの場合はダミーデータを返す
+    if (this.useMock) {
+      console.log('モックモードでシート名一覧を返します');
+      return ['Sheet1', 'メンバー1', 'メンバー2', 'メンバー3'];
+    }
+
     try {
       const response = await this.sheets.spreadsheets.get({
         spreadsheetId,
       });
 
-      return response.data.sheets.map((sheet: any) => sheet.properties.title);
-    } catch (error) {
-      console.error('シート名の取得に失敗:', error);
-      if (error instanceof Error) {
-        throw new Error(`シート名の取得に失敗: ${error.message}`);
+      const sheets = response.data.sheets;
+      if (!sheets || sheets.length === 0) {
+        console.log('シートが見つかりませんでした');
+        return [];
       }
-      throw new Error('シート名の取得に失敗しました');
+
+      return sheets.map((sheet: any) => sheet.properties.title);
+    } catch (error) {
+      console.error('シート名一覧の取得エラー:', error);
+      throw error;
     }
   }
 
@@ -151,5 +179,39 @@ export class GoogleSheetsService {
       workType: event.workType,
       description: null
     }));
+  }
+
+  // モックスケジュールデータの生成
+  private getMockScheduleData(): SheetEvent[] {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    
+    return [
+      {
+        date: today.toISOString().split('T')[0],
+        userId: 1,
+        title: '開発ミーティング',
+        workType: 'office',
+        startTime: '10:00',
+        endTime: '12:00'
+      },
+      {
+        date: today.toISOString().split('T')[0],
+        userId: 2,
+        title: 'クライアントMTG',
+        workType: 'remote',
+        startTime: '14:00',
+        endTime: '15:30'
+      },
+      {
+        date: tomorrow.toISOString().split('T')[0],
+        userId: 1,
+        title: 'プロジェクト計画',
+        workType: 'office',
+        startTime: '09:30',
+        endTime: '17:00'
+      }
+    ];
   }
 } 
