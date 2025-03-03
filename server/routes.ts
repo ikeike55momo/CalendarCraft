@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { google } from "googleapis";
 import { format } from "date-fns";
 import webpush from "web-push";
+import { GoogleSheetsService } from "./services/sheets";
 
 // Google Sheets APIの設定
 const setupGoogleSheetsAPI = () => {
@@ -41,6 +42,7 @@ export const setupRoutes = (app: Express): Server => {
   const server = createServer(app);
   const sheets = setupGoogleSheetsAPI();
   const vapidKeys = setupWebPush();
+  const sheetsService = new GoogleSheetsService();
 
   // 購読エンドポイント
   app.post("/api/push/subscribe", (req: Request, res: Response) => {
@@ -274,26 +276,34 @@ export const setupRoutes = (app: Express): Server => {
       // if (!req.user || req.user.role !== "admin") {
       //   return res.status(403).json({ error: "管理者権限が必要です" });
       // }
-
-      const sheets = setupGoogleSheetsAPI();
       
-      // スプレッドシートIDと範囲（実際の環境では環境変数から取得）
-      const spreadsheetId = process.env.SPREADSHEET_ID || "your-spreadsheet-id";
-      const range = "Sheet1!A2:E"; // ヘッダーを除く範囲
+      const { spreadsheetId, range } = req.body;
       
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range,
-      });
-      
-      const rows = response.data.values || [];
-      
-      if (rows.length === 0) {
-        return res.status(200).json({ message: "インポートするデータがありません", count: 0 });
+      if (!spreadsheetId || !range) {
+        return res.status(400).json({ 
+          error: "スプレッドシートIDと範囲が必要です" 
+        });
       }
       
+      // スプレッドシートからデータを取得
+      const sheetEvents = await sheetsService.getScheduleData(spreadsheetId, range);
+      
+      if (sheetEvents.length === 0) {
+        return res.status(200).json({ 
+          message: "インポートするデータがありません", 
+          count: 0 
+        });
+      }
+      
+      // シートイベントをInsertEvent形式に変換
+      const insertEvents = sheetsService.convertToInsertEvents(sheetEvents);
+      
       // インポートしたデータをDBに保存
-      const importedCount = await importSheetsData(rows);
+      let importedCount = 0;
+      for (const event of insertEvents) {
+        await storage.createEvent(event);
+        importedCount++;
+      }
       
       return res.status(200).json({ 
         message: "スプレッドシートからデータをインポートしました", 
@@ -308,51 +318,33 @@ export const setupRoutes = (app: Express): Server => {
     }
   });
 
+  // シート名一覧を取得するエンドポイント
+  app.get("/api/admin/sheet-names", async (req: Request, res: Response) => {
+    try {
+      const { spreadsheetId } = req.query;
+      
+      if (!spreadsheetId) {
+        return res.status(400).json({ 
+          error: "スプレッドシートIDが必要です" 
+        });
+      }
+      
+      const sheetNames = await sheetsService.getSheetNames(spreadsheetId as string);
+      
+      return res.status(200).json({ 
+        sheetNames 
+      });
+    } catch (error) {
+      console.error("Sheet names fetch error:", error);
+      return res.status(500).json({ 
+        error: "シート名の取得中にエラーが発生しました", 
+        details: error instanceof Error ? error.message : "Unknown error" 
+      });
+    }
+  });
+
   // use storage to perform CRUD operations on the storage interface
   // e.g. storage.insertUser(user) or storage.getUserByUsername(username)
 
   return server;
 };
-
-// スプレッドシートのデータをインポートする関数
-async function importSheetsData(rows: any[]): Promise<number> {
-  let importedCount = 0;
-  
-  try {
-    // ユーザー情報をキャッシュ
-    const users = await storage.getUsers();
-    const userMap = new Map(users.map(user => [user.sheetName, user.id]));
-    
-    for (const row of rows) {
-      // スプレッドシートの列に合わせて調整
-      const [name, date, startTime, endTime, workType] = row;
-      
-      // ユーザーIDを取得
-      const userId = userMap.get(name);
-      if (!userId) {
-        console.warn(`User not found for name: ${name}`);
-        continue;
-      }
-      
-      // 日付と時間を結合してDateオブジェクトに変換
-      const startDateTime = new Date(`${date}T${startTime}`);
-      const endDateTime = new Date(`${date}T${endTime}`);
-      
-      // イベントを作成
-      await storage.createEvent({
-        userId,
-        title: workType === "office" ? "出勤" : "テレワーク",
-        startTime: startDateTime,
-        endTime: endDateTime,
-        workType: workType === "office" ? "office" : "remote",
-      });
-      
-      importedCount++;
-    }
-    
-    return importedCount;
-  } catch (error) {
-    console.error("Error importing data:", error);
-    throw error;
-  }
-}

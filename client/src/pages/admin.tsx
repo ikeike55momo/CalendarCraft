@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Session, User } from "@supabase/supabase-js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import SpreadsheetImport from '../components/admin/SpreadsheetImport';
 
 // 未承認ユーザーの型定義
 interface PendingUser {
@@ -17,7 +18,7 @@ interface PendingUser {
   created_at: string;
 }
 
-export default function AdminPage() {
+const AdminPage: React.FC = () => {
   const { toast } = useToast();
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -412,10 +413,12 @@ export default function AdminPage() {
               <Badge variant="destructive" className="ml-2">{pendingUsers.length}</Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="import">データインポート</TabsTrigger>
         </TabsList>
         
+        {/* ユーザー管理タブ */}
         <TabsContent value="users" className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card>
+          <Card title="ユーザー登録" style={{ marginBottom: 24 }}>
             <CardHeader>
               <CardTitle>
                 {isPreRegistration ? "メンバー事前登録" : "ユーザー登録"}
@@ -529,7 +532,7 @@ export default function AdminPage() {
             </CardContent>
           </Card>
           
-          <Card>
+          <Card title="ユーザー一覧" style={{ marginBottom: 24 }}>
             <CardHeader>
               <CardTitle>ユーザー一覧</CardTitle>
               <CardDescription>登録済みのユーザー</CardDescription>
@@ -587,8 +590,9 @@ export default function AdminPage() {
           </Card>
         </TabsContent>
         
+        {/* 承認待ちタブ */}
         <TabsContent value="pending">
-          <Card>
+          <Card title="承認待ちユーザー" style={{ marginBottom: 24 }}>
             <CardHeader>
               <CardTitle>承認待ちユーザー</CardTitle>
               <CardDescription>
@@ -643,7 +647,14 @@ export default function AdminPage() {
             </CardContent>
           </Card>
         </TabsContent>
+        
+        {/* データインポートタブ */}
+        <TabsContent value="import">
+          <SpreadsheetImport />
+        </TabsContent>
       </Tabs>
     </div>
   );
-} 
+};
+
+export default AdminPage; 
