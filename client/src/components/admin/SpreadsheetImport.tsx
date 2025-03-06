@@ -13,6 +13,18 @@ import { supabase } from "@/lib/supabase";
 const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxYWbWl4nzLvRB0rz4NBs9IJINIpNnWktAq8PnR_TYIa8fDi46Cq5QQZSHpPCAhY-6e/exec';
 const API_KEY = 'your-secret-api-key'; // こちらも環境変数として管理すべき
 
+// ユーザー型の定義
+interface Member {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  sheet_name?: string;
+  google_sub?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 const SpreadsheetImport: React.FC = () => {
   const [sheetNames, setSheetNames] = useState<string[]>([]);
   const [selectedSheet, setSelectedSheet] = useState('');
@@ -23,82 +35,99 @@ const SpreadsheetImport: React.FC = () => {
   const { toast } = useToast();
 
   // スプレッドシートデータをアプリケーションで使用できる形式に変換
-  const convertSheetDataToEvents = (rawData: any[]) => {
+  const convertSheetDataToEvents = (rawData: any[], memberIds?: Map<string, number>) => {
     console.log('スプレッドシートの生データ:', rawData);
     // サンプルレコードを調査
     if (rawData.length > 0) {
       console.log('最初のレコードの構造:', rawData[0]);
     }
     
-    // 必要なフィールドが存在するかどうかをチェック
-    const validRows = rawData.filter(row => {
-      const hasDate = row && (row['日付'] || row['date'] || row['Date']);
-      const hasName = row && (row['名前'] || row['name'] || row['Name']);
-      return hasDate && hasName;
-    });
-    
-    console.log('有効と判断されたレコード数:', validRows.length);
-    
-    if (validRows.length === 0) {
+    // 空のデータの場合はすぐにリターン
+    if (!rawData || rawData.length === 0) {
       return [];
     }
     
-    // フィールド名を特定（最初の有効なレコードを基準に）
-    const firstRow = validRows[0];
-    const dateField = firstRow['日付'] !== undefined ? '日付' : 
-                     firstRow['date'] !== undefined ? 'date' : 'Date';
-    const nameField = firstRow['名前'] !== undefined ? '名前' : 
-                     firstRow['name'] !== undefined ? 'name' : 'Name';
-    const workTypeField = firstRow['勤務形態'] !== undefined ? '勤務形態' : 
-                         firstRow['workType'] !== undefined ? 'workType' : 
-                         firstRow['WorkType'] !== undefined ? 'WorkType' : '';
+    const events: any[] = [];
     
-    console.log('使用するフィールド名:', { dateField, nameField, workTypeField });
+    // スプレッドシートの構造を解析
+    // シート名(yyyyMM)の取得 (例: "202401")
+    const yearMonth = selectedSheet;
     
-    return validRows.map(row => {
-      // データが存在することが保証されている
-      const date = row[dateField] || '';
-      const userName = row[nameField] || '';
+    // 参照ファイルのシート構造に基づいたデータ変換
+    try {
+      // 構造: 各メンバーは3行で表現され、1列目にメンバー名がある
+      // 各日付はC列（3列目）から始まる
       
-      // 勤務形態フィールドが存在する場合は使用、存在しない場合はデフォルト値
-      let workType = 'office'; // デフォルト値
-      if (workTypeField && row[workTypeField]) {
-        const typeValue = row[workTypeField].toString().toLowerCase();
-        workType = (typeValue.includes('テレ') || typeValue.includes('リモート') || typeValue.includes('remote')) ? 'remote' : 'office';
-      }
+      // ヘッダー行を取得
+      const headerRow = rawData[0] || [];
       
-      // 日付形式の処理（yyyy/mm/dd や mm/dd/yyyy などの形式に対応）
-      let formattedDate = date;
-      if (typeof date === 'string') {
-        // 日付文字列のフォーマットを調整
-        const dateParts = date.split(/[\/\-]/);
-        if (dateParts.length === 3) {
-          // yyyy/mm/dd の形式に変換
-          if (dateParts[0].length === 4) {
-            formattedDate = `${dateParts[0]}-${dateParts[1].padStart(2, '0')}-${dateParts[2].padStart(2, '0')}`;
-          } else if (dateParts[2].length === 4) {
-            // mm/dd/yyyy の形式を yyyy-mm-dd に変換
-            formattedDate = `${dateParts[2]}-${dateParts[0].padStart(2, '0')}-${dateParts[1].padStart(2, '0')}`;
+      // メンバー処理（3行ごとにまとめられている）
+      for (let i = 1; i < rawData.length; i += 3) {
+        // メンバー名を取得
+        const memberName = rawData[i]?.[0]?.replace?.(/\n/g, ' ')?.trim() || '';
+        if (!memberName) continue;
+        
+        console.log(`メンバー処理: ${memberName}`);
+        
+        // ユーザーIDを取得（メンバーマップから）
+        // メンバーが見つからない場合は管理者ID（1）を使用
+        let userId = 1; // デフォルト値（管理者ID）
+        
+        if (memberIds) {
+          const mappedId = memberIds.get(memberName);
+          if (mappedId) {
+            userId = mappedId;
+          } else {
+            console.log(`警告: "${memberName}" のユーザーIDが見つかりません。管理者IDを使用します。`);
+          }
+        }
+        
+        // 各日の予定を処理
+        for (let day = 1; day <= 31; day++) {
+          const columnIndex = 2 + day; // C列（3列目）が1日目
+          if (columnIndex >= headerRow.length) break; // シートの範囲外
+          
+          // 勤務形態を取得 (出社またはテレ)
+          const workType = rawData[i + 2]?.[columnIndex];
+          
+          // 有効な勤務形態の場合のみイベントを作成
+          if (workType === '出社' || workType === 'テレ') {
+            // 日付の形式を整えて作成
+            const dateStr = `${yearMonth}${String(day).padStart(2, '0')}`;
+            const dateObj = new Date(
+              parseInt(dateStr.substring(0, 4)), 
+              parseInt(dateStr.substring(4, 6)) - 1, 
+              parseInt(dateStr.substring(6, 8))
+            );
+            
+            // ISO形式の日付を作成
+            const formattedDate = dateObj.toISOString().split('T')[0];
+            
+            // イベントを作成
+            const event = {
+              userId,
+              title: workType === '出社' ? '出勤' : 'テレワーク',
+              startTime: `${formattedDate}T09:00:00`,
+              endTime: `${formattedDate}T18:00:00`,
+              workType: workType === '出社' ? 'office' : 'remote',
+              description: `${memberName}の予定 (シート: ${selectedSheet})`
+            };
+            
+            events.push(event);
           }
         }
       }
       
-      // デフォルトの勤務時間を設定（9:00-18:00）
-      const startTime = `${formattedDate}T09:00:00`;
-      const endTime = `${formattedDate}T18:00:00`;
-      
-      const event = {
-        userId: 1, // 実装時は適切にユーザーIDを解決する
-        title: workType === 'office' ? '出勤' : 'テレワーク',
-        startTime,
-        endTime,
-        workType,
-        description: `${userName}の予定`
-      };
-      
-      console.log('生成されたイベント:', event);
-      return event;
-    });
+    } catch (error) {
+      console.error('データ変換エラー:', error);
+    }
+    
+    console.log(`変換後のイベント数: ${events.length}`);
+    if (events.length > 0) {
+      console.log('変換後の最初のイベント:', events[0]);
+    }
+    
+    return events;
   };
 
   // 利用可能なシート名を取得
@@ -178,8 +207,33 @@ const SpreadsheetImport: React.FC = () => {
       }
       
       if (data.success && data.data) {
-        // データを変換
-        const events = convertSheetDataToEvents(data.data);
+        // ユーザー情報を事前に取得
+        const { data: users, error } = await supabase.from('members').select('*');
+        if (error) {
+          throw new Error(`ユーザー情報の取得に失敗: ${error.message}`);
+        }
+        
+        // メンバーIDマップを作成
+        const memberIds = new Map<string, number>();
+        if (users) {
+          users.forEach((user: Member) => {
+            // 名前でマッピング
+            const memberName = user.name || '';
+            if (memberName) {
+              memberIds.set(memberName, user.id);
+            }
+            
+            // sheet_nameでもマッピング（あれば）
+            if (user.sheet_name) {
+              memberIds.set(user.sheet_name, user.id);
+            }
+          });
+        }
+        
+        console.log('ユーザーマッピング:', Object.fromEntries(memberIds));
+        
+        // データを変換（メンバーIDマップを渡す）
+        const events = convertSheetDataToEvents(data.data, memberIds);
         
         if (events.length === 0) {
           setSuccessMessage("インポート可能なデータがありませんでした");
@@ -195,13 +249,13 @@ const SpreadsheetImport: React.FC = () => {
         const tableName = 'calendar'; // 実際のテーブル名に合わせて変更
         
         // Supabaseに保存
-        const { error } = await supabase
+        const { error: insertError } = await supabase
           .from(tableName)
           .upsert(events);
         
-        if (error) {
-          console.error('Supabaseエラー:', error);
-          throw new Error(`データの保存に失敗しました: ${error.message}`);
+        if (insertError) {
+          console.error('Supabaseエラー:', insertError);
+          throw new Error(`データの保存に失敗しました: ${insertError.message}`);
         }
         
         setSuccessMessage(`${events.length}件のデータをインポートしました`);
