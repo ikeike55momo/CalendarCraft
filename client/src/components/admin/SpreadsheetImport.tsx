@@ -14,7 +14,7 @@ const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxYWbWl4nzLvRB0rz4N
 const API_KEY = 'your-secret-api-key'; // こちらも環境変数として管理すべき
 
 // ユーザー型の定義
-interface Member {
+interface User {
   id: number;
   name: string;
   email: string;
@@ -35,7 +35,11 @@ const SpreadsheetImport: React.FC = () => {
   const { toast } = useToast();
 
   // スプレッドシートデータをアプリケーションで使用できる形式に変換
-  const convertSheetDataToEvents = (rawData: any[], memberIds?: Map<string, number>) => {
+  const convertSheetDataToEvents = (
+    rawData: any[], 
+    memberIds?: Map<string, number>,
+    memberNames?: Map<string, string>
+  ) => {
     console.log('スプレッドシートの生データ:', rawData);
     // サンプルレコードを調査
     if (rawData.length > 0) {
@@ -64,21 +68,26 @@ const SpreadsheetImport: React.FC = () => {
       // メンバー処理（3行ごとにまとめられている）
       for (let i = 1; i < rawData.length; i += 3) {
         // メンバー名を取得
-        const memberName = rawData[i]?.[0]?.replace?.(/\n/g, ' ')?.trim() || '';
-        if (!memberName) continue;
+        const sheetMemberName = rawData[i]?.[0]?.replace?.(/\n/g, ' ')?.trim() || '';
+        if (!sheetMemberName) continue;
         
-        console.log(`メンバー処理: ${memberName}`);
+        console.log(`メンバー処理: ${sheetMemberName}`);
         
         // ユーザーIDを取得（メンバーマップから）
         // メンバーが見つからない場合は管理者ID（1）を使用
         let userId = 1; // デフォルト値（管理者ID）
+        let realName = sheetMemberName; // デフォルトではシートの名前をそのまま使用
         
         if (memberIds) {
-          const mappedId = memberIds.get(memberName);
+          const mappedId = memberIds.get(sheetMemberName);
           if (mappedId) {
             userId = mappedId;
+            // 実際の名前を取得（あれば）
+            if (memberNames && memberNames.get(sheetMemberName)) {
+              realName = memberNames.get(sheetMemberName) || sheetMemberName;
+            }
           } else {
-            console.log(`警告: "${memberName}" のユーザーIDが見つかりません。管理者IDを使用します。`);
+            console.log(`警告: "${sheetMemberName}" のユーザーIDが見つかりません。管理者IDを使用します。`);
           }
         }
         
@@ -103,14 +112,21 @@ const SpreadsheetImport: React.FC = () => {
             // ISO形式の日付を作成
             const formattedDate = dateObj.toISOString().split('T')[0];
             
-            // イベントを作成
+            // タイトルとワークタイプを設定
+            // シートの値をそのまま使用
+            const title = workType === '出社' ? '出勤' : 'テレワーク';
+            const workTypeValue = workType; // 値をそのまま使用（'出社'/'テレ'）
+            
+            // 実際のテーブル構造に合わせたフィールド名でイベントを作成
             const event = {
-              userId,
-              title: workType === '出社' ? '出勤' : 'テレワーク',
-              startTime: `${formattedDate}T09:00:00`,
-              endTime: `${formattedDate}T18:00:00`,
-              workType: workType === '出社' ? 'office' : 'remote',
-              description: `${memberName}の予定 (シート: ${selectedSheet})`
+              // idはSupabaseが自動生成
+              "ユーザーID": userId,
+              "タイトル": title,
+              "説明": `${realName}の予定 (シート: ${selectedSheet})`,
+              "開始時間": `${formattedDate}T09:00:00`,
+              "終了時間": `${formattedDate}T18:00:00`,
+              "仕事の種類": workTypeValue,
+              // 作成日時と更新日時はSupabaseで自動設定されると想定
             };
             
             events.push(event);
@@ -208,32 +224,34 @@ const SpreadsheetImport: React.FC = () => {
       
       if (data.success && data.data) {
         // ユーザー情報を事前に取得
-        const { data: users, error } = await supabase.from('members').select('*');
+        const { data: users, error } = await supabase.from('users').select('*');
         if (error) {
           throw new Error(`ユーザー情報の取得に失敗: ${error.message}`);
         }
         
-        // メンバーIDマップを作成
+        // メンバーIDマップを作成（sheet_nameとユーザーIDのマッピング）
         const memberIds = new Map<string, number>();
+        const memberNames = new Map<string, string>(); // sheet_nameから実際の名前へのマッピング
+        
         if (users) {
-          users.forEach((user: Member) => {
-            // 名前でマッピング
-            const memberName = user.name || '';
-            if (memberName) {
-              memberIds.set(memberName, user.id);
-            }
-            
-            // sheet_nameでもマッピング（あれば）
+          users.forEach((user: User) => {
+            // sheet_nameをキーにしてIDをマッピング
             if (user.sheet_name) {
               memberIds.set(user.sheet_name, user.id);
+              memberNames.set(user.sheet_name, user.name);
+            }
+            
+            // 名前でもマッピング（代替手段として）
+            if (user.name) {
+              memberIds.set(user.name, user.id);
             }
           });
         }
         
         console.log('ユーザーマッピング:', Object.fromEntries(memberIds));
         
-        // データを変換（メンバーIDマップを渡す）
-        const events = convertSheetDataToEvents(data.data, memberIds);
+        // データを変換（メンバーIDマップとメンバー名マップを渡す）
+        const events = convertSheetDataToEvents(data.data, memberIds, memberNames);
         
         if (events.length === 0) {
           setSuccessMessage("インポート可能なデータがありませんでした");
@@ -245,8 +263,8 @@ const SpreadsheetImport: React.FC = () => {
           return;
         }
         
-        // Supabaseの実際のテーブル名に合わせる
-        const tableName = 'calendar'; // 実際のテーブル名に合わせて変更
+        // Supabaseの実際のテーブル名とフィールド名に合わせる
+        const tableName = 'イベント'; // 実際のテーブル名
         
         // Supabaseに保存
         const { error: insertError } = await supabase
