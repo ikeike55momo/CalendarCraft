@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Session, User } from "@supabase/supabase-js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import SpreadsheetImport from "@/components/admin/SpreadsheetImport";
 
 // 未承認ユーザーの型定義
 interface PendingUser {
@@ -412,6 +413,7 @@ export default function AdminPage() {
               <Badge variant="destructive" className="ml-2">{pendingUsers.length}</Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="import">データインポート</TabsTrigger>
         </TabsList>
         
         <TabsContent value="users" className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -642,6 +644,10 @@ export default function AdminPage() {
               </Button>
             </CardContent>
           </Card>
+        </TabsContent>
+        
+        <TabsContent value="import">
+          <SpreadsheetImport />
         </TabsContent>
       </Tabs>
     </div>
