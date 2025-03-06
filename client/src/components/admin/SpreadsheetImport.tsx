@@ -24,19 +24,70 @@ const SpreadsheetImport: React.FC = () => {
 
   // スプレッドシートデータをアプリケーションで使用できる形式に変換
   const convertSheetDataToEvents = (rawData: any[]) => {
-    return rawData.filter(row => row && row['日付'] && row['名前']).map(row => {
-      // スプレッドシートの構造に合わせて調整する必要があります
-      const date = row['日付'] || '';
-      const userName = row['名前'] || '';
-      const workType = row['勤務形態'] === '出社' ? 'office' : 'remote';
+    console.log('スプレッドシートの生データ:', rawData);
+    // サンプルレコードを調査
+    if (rawData.length > 0) {
+      console.log('最初のレコードの構造:', rawData[0]);
+    }
+    
+    // 必要なフィールドが存在するかどうかをチェック
+    const validRows = rawData.filter(row => {
+      const hasDate = row && (row['日付'] || row['date'] || row['Date']);
+      const hasName = row && (row['名前'] || row['name'] || row['Name']);
+      return hasDate && hasName;
+    });
+    
+    console.log('有効と判断されたレコード数:', validRows.length);
+    
+    if (validRows.length === 0) {
+      return [];
+    }
+    
+    // フィールド名を特定（最初の有効なレコードを基準に）
+    const firstRow = validRows[0];
+    const dateField = firstRow['日付'] !== undefined ? '日付' : 
+                     firstRow['date'] !== undefined ? 'date' : 'Date';
+    const nameField = firstRow['名前'] !== undefined ? '名前' : 
+                     firstRow['name'] !== undefined ? 'name' : 'Name';
+    const workTypeField = firstRow['勤務形態'] !== undefined ? '勤務形態' : 
+                         firstRow['workType'] !== undefined ? 'workType' : 
+                         firstRow['WorkType'] !== undefined ? 'WorkType' : '';
+    
+    console.log('使用するフィールド名:', { dateField, nameField, workTypeField });
+    
+    return validRows.map(row => {
+      // データが存在することが保証されている
+      const date = row[dateField] || '';
+      const userName = row[nameField] || '';
+      
+      // 勤務形態フィールドが存在する場合は使用、存在しない場合はデフォルト値
+      let workType = 'office'; // デフォルト値
+      if (workTypeField && row[workTypeField]) {
+        const typeValue = row[workTypeField].toString().toLowerCase();
+        workType = (typeValue.includes('テレ') || typeValue.includes('リモート') || typeValue.includes('remote')) ? 'remote' : 'office';
+      }
+      
+      // 日付形式の処理（yyyy/mm/dd や mm/dd/yyyy などの形式に対応）
+      let formattedDate = date;
+      if (typeof date === 'string') {
+        // 日付文字列のフォーマットを調整
+        const dateParts = date.split(/[\/\-]/);
+        if (dateParts.length === 3) {
+          // yyyy/mm/dd の形式に変換
+          if (dateParts[0].length === 4) {
+            formattedDate = `${dateParts[0]}-${dateParts[1].padStart(2, '0')}-${dateParts[2].padStart(2, '0')}`;
+          } else if (dateParts[2].length === 4) {
+            // mm/dd/yyyy の形式を yyyy-mm-dd に変換
+            formattedDate = `${dateParts[2]}-${dateParts[0].padStart(2, '0')}-${dateParts[1].padStart(2, '0')}`;
+          }
+        }
+      }
       
       // デフォルトの勤務時間を設定（9:00-18:00）
-      const startTime = `${date}T09:00:00`;
-      const endTime = `${date}T18:00:00`;
+      const startTime = `${formattedDate}T09:00:00`;
+      const endTime = `${formattedDate}T18:00:00`;
       
-      // TODO: ユーザー名からユーザーIDを解決する処理が必要
-      // 仮実装としてユーザー名をそのままIDとして使用
-      return {
+      const event = {
         userId: 1, // 実装時は適切にユーザーIDを解決する
         title: workType === 'office' ? '出勤' : 'テレワーク',
         startTime,
@@ -44,6 +95,9 @@ const SpreadsheetImport: React.FC = () => {
         workType,
         description: `${userName}の予定`
       };
+      
+      console.log('生成されたイベント:', event);
+      return event;
     });
   };
 
@@ -137,12 +191,16 @@ const SpreadsheetImport: React.FC = () => {
           return;
         }
         
+        // Supabaseの実際のテーブル名に合わせる
+        const tableName = 'calendar'; // 実際のテーブル名に合わせて変更
+        
         // Supabaseに保存
         const { error } = await supabase
-          .from('events')
+          .from(tableName)
           .upsert(events);
         
         if (error) {
+          console.error('Supabaseエラー:', error);
           throw new Error(`データの保存に失敗しました: ${error.message}`);
         }
         
