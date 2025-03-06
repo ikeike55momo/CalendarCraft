@@ -3,4 +3,11 @@ dist
 .DS_Store
 server/public
 vite.config.ts.*
-*.tar.gzsupabase/.temp
+*.tar.gz
+supabase/.temp
+.netlify/
+CLI-README.md
+cli.js
+update-env-direct.js
+update-netlify-env-auto.js
+update-netlify-env.js
