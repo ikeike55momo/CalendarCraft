@@ -41,14 +41,22 @@ const SpreadsheetImport: React.FC = () => {
     memberNames?: Map<string, string>
   ) => {
     console.log('スプレッドシートの生データ:', rawData);
-    // サンプルレコードを調査
-    if (rawData.length > 0) {
-      console.log('最初のレコードの構造:', rawData[0]);
-    }
+    console.log('生データの長さ:', rawData.length);
     
     // 空のデータの場合はすぐにリターン
     if (!rawData || rawData.length === 0) {
       return [];
+    }
+    
+    // データ構造をより詳細に分析
+    console.log('データ型:', typeof rawData);
+    console.log('配列チェック:', Array.isArray(rawData));
+    
+    // 最初の数レコードを詳しく調査
+    for (let i = 0; i < Math.min(5, rawData.length); i++) {
+      console.log(`レコード[${i}]:`, rawData[i]);
+      console.log(`レコード[${i}]のタイプ:`, typeof rawData[i]);
+      console.log(`レコード[${i}]のキー:`, Object.keys(rawData[i]));
     }
     
     const events: any[] = [];
@@ -57,82 +65,132 @@ const SpreadsheetImport: React.FC = () => {
     // シート名(yyyyMM)の取得 (例: "202401")
     const yearMonth = selectedSheet;
     
-    // 参照ファイルのシート構造に基づいたデータ変換
     try {
-      // 構造: 各メンバーは3行で表現され、1列目にメンバー名がある
-      // 各日付はC列（3列目）から始まる
+      // 新しいデータ構造に基づいた変換処理
+      // APIから返されるデータ構造に応じて調整
       
-      // ヘッダー行を取得
-      const headerRow = rawData[0] || [];
+      // ステップ1: データ内のユーザー名/シート名を特定
+      const memberSet = new Set<string>();
       
-      // メンバー処理（3行ごとにまとめられている）
-      for (let i = 1; i < rawData.length; i += 3) {
-        // メンバー名を取得
-        const sheetMemberName = rawData[i]?.[0]?.replace?.(/\n/g, ' ')?.trim() || '';
-        if (!sheetMemberName) continue;
-        
-        console.log(`メンバー処理: ${sheetMemberName}`);
-        
-        // ユーザーIDを取得（メンバーマップから）
-        // メンバーが見つからない場合は管理者ID（1）を使用
-        let userId = 1; // デフォルト値（管理者ID）
-        let realName = sheetMemberName; // デフォルトではシートの名前をそのまま使用
-        
-        if (memberIds) {
-          const mappedId = memberIds.get(sheetMemberName);
-          if (mappedId) {
-            userId = mappedId;
-            // 実際の名前を取得（あれば）
-            if (memberNames && memberNames.get(sheetMemberName)) {
-              realName = memberNames.get(sheetMemberName) || sheetMemberName;
+      // すべてのレコードからユーザー/シート名を抽出
+      rawData.forEach((record: any) => {
+        // 各レコードのキーをチェック
+        const keys = Object.keys(record);
+        keys.forEach(key => {
+          // キーに含まれる可能性のあるユーザー名/シート名を検出
+          if (typeof record[key] === 'string' && record[key].trim() !== '') {
+            const possibleName = record[key].trim();
+            if (possibleName.length > 1) { // 単一文字は除外
+              memberSet.add(possibleName);
             }
-          } else {
-            console.log(`警告: "${sheetMemberName}" のユーザーIDが見つかりません。管理者IDを使用します。`);
+          }
+        });
+      });
+      
+      console.log('検出された可能性のあるユーザー/シート名:', Array.from(memberSet));
+      
+      // ステップ2: 各ユーザーと日付の組み合わせからイベントを生成
+      memberSet.forEach(memberName => {
+        // 最初にユーザーIDとマッピングをチェック
+        let userId = 1; // デフォルト値（管理者ID）
+        let realName = memberName; // デフォルトではシートの名前をそのまま使用
+        
+        // 完全一致を最初に試す
+        if (memberIds && memberIds.has(memberName)) {
+          userId = memberIds.get(memberName) || 1;
+          if (memberNames && memberNames.has(memberName)) {
+            realName = memberNames.get(memberName) || memberName;
+          }
+        } else {
+          // 完全一致しない場合、部分一致と特殊文字を除去した検索を試みる
+          const cleanedMemberName = memberName.replace(/[\n（）()]/g, '').trim();
+          
+          // 部分一致検索
+          if (memberIds) {
+            // Map上のすべてのキーに対して部分一致をチェック
+            let matched = false;
+            
+            // MapIteratorではなく配列に変換して反復処理
+            Array.from(memberIds.entries()).some(([key, id]) => {
+              // キーに指定された名前が含まれている、または逆に含まれている場合
+              if (key.includes(cleanedMemberName) || cleanedMemberName.includes(key)) {
+                userId = id;
+                if (memberNames && memberNames.has(key)) {
+                  realName = memberNames.get(key) || memberName;
+                }
+                matched = true;
+                console.log(`部分一致: "${memberName}" → "${key}" (ID: ${id}, 表示名: ${realName})`);
+                return true; // 一致したらループを終了
+              }
+              return false;
+            });
+            
+            if (!matched) {
+              console.log(`警告: "${memberName}" のユーザーIDが見つかりません。管理者IDを使用します。`);
+            }
           }
         }
         
-        // 各日の予定を処理
-        for (let day = 1; day <= 31; day++) {
-          const columnIndex = 2 + day; // C列（3列目）が1日目
-          if (columnIndex >= headerRow.length) break; // シートの範囲外
+        // 日付を生成 - 月の初日から末日まで
+        const year = parseInt(yearMonth.substring(0, 4));
+        const month = parseInt(yearMonth.substring(4, 6)) - 1; // JSの月は0から始まる
+        
+        // 月の最終日を取得
+        const lastDay = new Date(year, month + 1, 0).getDate();
+        
+        for (let day = 1; day <= lastDay; day++) {
+          // 各日のデータを探す
+          const dateObj = new Date(year, month, day);
+          const dateStr = dateObj.toISOString().split('T')[0]; // YYYY-MM-DD形式
           
-          // 勤務形態を取得 (出社またはテレ)
-          const workType = rawData[i + 2]?.[columnIndex];
+          // この日付におけるユーザーの勤務形態を探す
+          // 様々な可能性のあるデータ構造に対応
+          let workType = null;
           
-          // 有効な勤務形態の場合のみイベントを作成
-          if (workType === '出社' || workType === 'テレ') {
-            // 日付の形式を整えて作成
-            const dateStr = `${yearMonth}${String(day).padStart(2, '0')}`;
-            const dateObj = new Date(
-              parseInt(dateStr.substring(0, 4)), 
-              parseInt(dateStr.substring(4, 6)) - 1, 
-              parseInt(dateStr.substring(6, 8))
-            );
-            
-            // ISO形式の日付を作成
-            const formattedDate = dateObj.toISOString().split('T')[0];
-            
-            // タイトルとワークタイプを設定
-            // シートの値をそのまま使用
-            const title = workType === '出社' ? '出勤' : 'テレワーク';
-            const workTypeValue = workType; // 値をそのまま使用（'出社'/'テレ'）
-            
-            // 実際のテーブル構造に合わせたフィールド名でイベントを作成
+          // データ構造1: 日付をキーとして持つオブジェクト
+          rawData.forEach((record: any) => {
+            const recordKeys = Object.keys(record);
+            recordKeys.forEach(key => {
+              // キーが日付の場合
+              if (key.includes(dateObj.toDateString())) {
+                if (record[key] === memberName || record[key] === '出社' || record[key] === 'テレ') {
+                  workType = record[key] === memberName ? '出社' : record[key];
+                }
+              }
+              
+              // 値がユーザー名と一致し、キーが日付の場合
+              if (record[key] === memberName) {
+                // キーが日付かチェック
+                try {
+                  const keyDate = new Date(key);
+                  if (!isNaN(keyDate.getTime()) && keyDate.getDate() === day) {
+                    // デフォルトで「出社」と仮定
+                    workType = '出社';
+                  }
+                } catch (e) {
+                  // 日付でない場合は無視
+                }
+              }
+            });
+          });
+          
+          // workTypeが設定されていれば、イベントを作成
+          if (workType) {
             const event = {
               // idはSupabaseが自動生成
-              "ユーザーID": userId,
-              "タイトル": title,
-              "説明": `${realName}の予定 (シート: ${selectedSheet})`,
-              "開始時間": `${formattedDate}T09:00:00`,
-              "終了時間": `${formattedDate}T18:00:00`,
-              "仕事の種類": workTypeValue,
-              // 作成日時と更新日時はSupabaseで自動設定されると想定
+              "user_id": userId,
+              "title": workType === '出社' ? '出勤' : 'テレワーク',
+              "description": `${realName}の予定 (シート: ${selectedSheet})`,
+              "start_time": `${dateStr}T09:00:00`,
+              "end_time": `${dateStr}T18:00:00`,
+              "work_type": workType,
             };
             
             events.push(event);
+            console.log(`イベント作成: ${dateStr} - ${realName} - ${workType}`);
           }
         }
-      }
+      });
       
     } catch (error) {
       console.error('データ変換エラー:', error);
@@ -233,22 +291,38 @@ const SpreadsheetImport: React.FC = () => {
         const memberIds = new Map<string, number>();
         const memberNames = new Map<string, string>(); // sheet_nameから実際の名前へのマッピング
         
+        console.log("取得したユーザー:", users);
+        
         if (users) {
           users.forEach((user: User) => {
             // sheet_nameをキーにしてIDをマッピング
             if (user.sheet_name) {
+              // 完全一致と部分一致の両方を考慮
               memberIds.set(user.sheet_name, user.id);
               memberNames.set(user.sheet_name, user.name);
+              
+              // 特殊文字や改行を除去した値でも検索できるように
+              const cleanedSheetName = user.sheet_name.replace(/[\n（）()]/g, '').trim();
+              if (cleanedSheetName !== user.sheet_name) {
+                memberIds.set(cleanedSheetName, user.id);
+                memberNames.set(cleanedSheetName, user.name);
+              }
             }
             
             // 名前でもマッピング（代替手段として）
             if (user.name) {
               memberIds.set(user.name, user.id);
+              // 特殊文字や改行を除去
+              const cleanedName = user.name.replace(/[\n（）()]/g, '').trim();
+              if (cleanedName !== user.name) {
+                memberIds.set(cleanedName, user.id);
+              }
             }
           });
         }
         
         console.log('ユーザーマッピング:', Object.fromEntries(memberIds));
+        console.log('名前マッピング:', Object.fromEntries(memberNames));
         
         // データを変換（メンバーIDマップとメンバー名マップを渡す）
         const events = convertSheetDataToEvents(data.data, memberIds, memberNames);
@@ -264,7 +338,7 @@ const SpreadsheetImport: React.FC = () => {
         }
         
         // Supabaseの実際のテーブル名とフィールド名に合わせる
-        const tableName = 'イベント'; // 実際のテーブル名
+        const tableName = 'events'; // 正しいテーブル名
         
         // Supabaseに保存
         const { error: insertError } = await supabase
