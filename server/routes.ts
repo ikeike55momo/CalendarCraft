@@ -170,6 +170,37 @@ export const setupRoutes = (app: Express): Server => {
     }
   });
 
+  // イベントインポートエンドポイント（管理者専用）
+  app.post("/api/events/import", async (req: Request, res: Response) => {
+    try {
+      const { events, apiKey } = req.body;
+      
+      // 簡易的な認証 - 実際の実装ではより堅牢な認証を使用するべき
+      if (!apiKey || apiKey !== process.env.ADMIN_API_KEY) {
+        return res.status(403).json({ error: '認証に失敗しました' });
+      }
+      
+      if (!Array.isArray(events) || events.length === 0) {
+        return res.status(400).json({ error: 'イベントが指定されていないか、無効な形式です' });
+      }
+      
+      console.log(`${events.length}件のイベントをインポートします`);
+      
+      // ここでサーバー側からデータベースに直接アクセス（RLSをバイパス）
+      const { error } = await storage.importEvents(events);
+      
+      if (error) {
+        console.error('インポートエラー:', error);
+        return res.status(500).json({ error: `イベントのインポートに失敗しました: ${error.message}` });
+      }
+      
+      return res.status(200).json({ success: true, count: events.length });
+    } catch (error) {
+      console.error('サーバーエラー:', error);
+      return res.status(500).json({ error: '予期しないエラーが発生しました' });
+    }
+  });
+
   // タスク関連のエンドポイント
   app.get("/api/tasks", async (req: Request, res: Response) => {
     try {

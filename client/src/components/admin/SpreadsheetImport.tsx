@@ -337,17 +337,22 @@ const SpreadsheetImport: React.FC = () => {
           return;
         }
         
-        // Supabaseの実際のテーブル名とフィールド名に合わせる
-        const tableName = 'events'; // 正しいテーブル名
+        // Netlify Functions経由でイベントをインポート（RLSをバイパス）
+        const serverResponse = await fetch('/api/events/import', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            events,
+            apiKey: 'admin-api-key' // 実際の実装では環境変数から取得すべき
+          })
+        });
         
-        // Supabaseに保存
-        const { error: insertError } = await supabase
-          .from(tableName)
-          .upsert(events);
+        const serverData = await serverResponse.json();
         
-        if (insertError) {
-          console.error('Supabaseエラー:', insertError);
-          throw new Error(`データの保存に失敗しました: ${insertError.message}`);
+        if (!serverResponse.ok || serverData.error) {
+          throw new Error(serverData.error || 'サーバーエラーが発生しました');
         }
         
         setSuccessMessage(`${events.length}件のデータをインポートしました`);

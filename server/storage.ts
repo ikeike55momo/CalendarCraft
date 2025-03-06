@@ -18,6 +18,7 @@ export interface IStorage {
   createAttendance(attendance: InsertAttendance): Promise<Attendance>;
   getAttendance(): Promise<Attendance[]>;
   getProjects(): Promise<Project[]>;
+  importEvents(importEvents: InsertEvent[]): Promise<{ error?: Error }>;
 }
 
 export class MemStorage implements IStorage {
@@ -160,6 +161,55 @@ export class MemStorage implements IStorage {
 
   async getProjects(): Promise<Project[]> {
     return Array.from(this.projects.values());
+  }
+
+  // 複数のイベントをインポートするメソッド
+  async importEvents(importEvents: InsertEvent[]): Promise<{ error?: Error }> {
+    try {
+      const now = new Date();
+      
+      // それぞれのイベントを処理
+      for (const insertEvent of importEvents) {
+        const id = `event-${this.currentEventId++}`;
+        // userIdが必須なので、デフォルト値を設定
+        const userId = insertEvent.userId || 1; // デフォルトユーザーID
+        
+        // 文字列の日付をDateオブジェクトに変換
+        let startTime: Date;
+        let endTime: Date;
+        
+        try {
+          startTime = new Date(insertEvent.startTime);
+          endTime = new Date(insertEvent.endTime);
+        } catch (error) {
+          console.error('日付変換エラー:', error);
+          // デフォルト値として現在時刻を使用
+          startTime = new Date();
+          endTime = new Date();
+          endTime.setHours(endTime.getHours() + 1);
+        }
+        
+        // スプレッドオペレータを使わず、明示的に各フィールドを指定
+        const event: Event = {
+          id,
+          userId,
+          title: insertEvent.title,
+          description: insertEvent.description || null,
+          startTime,
+          endTime,
+          workType: insertEvent.workType,
+          createdAt: now,
+          updatedAt: now
+        };
+        
+        this.events.set(id, event);
+      }
+      
+      return {}; // 成功
+    } catch (error) {
+      console.error('イベントインポートエラー:', error);
+      return { error: error instanceof Error ? error : new Error('不明なエラー') };
+    }
   }
 }
 
