@@ -10,7 +10,7 @@ import { supabase } from "@/lib/supabase";
 
 // GASのWebアプリURL（デプロイ後に更新する）
 // 注意: これは環境変数として管理するのがベストプラクティスです
-const GAS_API_URL = 'https://script.google.com/macros/s/YOUR_DEPLOYED_SCRIPT_ID/exec';
+const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxYWbWl4nzLvRB0rz4NBs9IJINIpNnWktAq8PnR_TYIa8fDi46Cq5QQZSHpPCAhY-6e/exec';
 const API_KEY = 'your-secret-api-key'; // こちらも環境変数として管理すべき
 
 const SpreadsheetImport: React.FC = () => {
@@ -54,31 +54,33 @@ const SpreadsheetImport: React.FC = () => {
     setSuccessMessage(null);
     
     try {
-      // デモ用に仮のシート名を設定
-      // 実際の実装ではGASへのAPIリクエストを行う
-      // const url = `${GAS_API_URL}?apiKey=${API_KEY}&action=getSheetNames`;
-      // const response = await fetch(url);
-      // const data = await response.json();
+      // 実際のGAS APIを呼び出す
+      const url = `${GAS_API_URL}?apiKey=${API_KEY}&action=getSheetNames`;
+      console.log('シート名取得リクエスト:', url);
       
-      // デモ用の仮データ
-      const mockData = {
-        success: true,
-        sheetNames: ['2024年5月', '2024年6月', '2024年7月']
-      };
+      const response = await fetch(url);
+      const data = await response.json();
+      console.log('シート名取得レスポンス:', data);
       
-      if (mockData.success && mockData.sheetNames) {
-        setSheetNames(mockData.sheetNames);
-        if (mockData.sheetNames.length > 0) {
-          setSelectedSheet(mockData.sheetNames[0]);
-          setSuccessMessage(`${mockData.sheetNames.length}件のシートを取得しました`);
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      if (data.success && data.sheetNames) {
+        setSheetNames(data.sheetNames);
+        if (data.sheetNames.length > 0) {
+          setSelectedSheet(data.sheetNames[0]);
+          setSuccessMessage(`${data.sheetNames.length}件のシートを取得しました`);
           toast({
             title: "成功",
-            description: `${mockData.sheetNames.length}件のシートを取得しました`,
+            description: `${data.sheetNames.length}件のシートを取得しました`,
             variant: "default"
           });
         } else {
           setErrorMessage("シートが見つかりませんでした。");
         }
+      } else {
+        setErrorMessage("シート名の取得に失敗しました。レスポンスが不正です。");
       }
     } catch (error) {
       console.error('シート名の取得に失敗しました:', error);
@@ -109,25 +111,31 @@ const SpreadsheetImport: React.FC = () => {
     setSuccessMessage(null);
     
     try {
-      // 実際の実装ではGASへのAPIリクエスト
-      // const url = `${GAS_API_URL}?apiKey=${API_KEY}&sheetName=${encodeURIComponent(selectedSheet)}`;
-      // const response = await fetch(url);
-      // const data = await response.json();
+      // 実際のGAS APIを呼び出す
+      const url = `${GAS_API_URL}?apiKey=${API_KEY}&sheetName=${encodeURIComponent(selectedSheet)}`;
+      console.log('データインポートリクエスト:', url);
       
-      // デモ用の仮データ
-      const mockData = {
-        success: true,
-        data: [
-          { '日付': '2024-05-01', '名前': '山田太郎', '勤務形態': '出社' },
-          { '日付': '2024-05-01', '名前': '鈴木花子', '勤務形態': 'テレワーク' },
-          { '日付': '2024-05-02', '名前': '山田太郎', '勤務形態': 'テレワーク' },
-          { '日付': '2024-05-02', '名前': '鈴木花子', '勤務形態': '出社' }
-        ]
-      };
+      const response = await fetch(url);
+      const data = await response.json();
+      console.log('データインポートレスポンス:', data);
       
-      if (mockData.success && mockData.data) {
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      if (data.success && data.data) {
         // データを変換
-        const events = convertSheetDataToEvents(mockData.data);
+        const events = convertSheetDataToEvents(data.data);
+        
+        if (events.length === 0) {
+          setSuccessMessage("インポート可能なデータがありませんでした");
+          toast({
+            title: "注意",
+            description: "インポート可能なデータがありませんでした",
+            variant: "default"
+          });
+          return;
+        }
         
         // Supabaseに保存
         const { error } = await supabase
@@ -144,6 +152,8 @@ const SpreadsheetImport: React.FC = () => {
           description: `${events.length}件のデータをインポートしました`,
           variant: "default"
         });
+      } else {
+        setErrorMessage("データの取得に失敗しました。レスポンスが不正です。");
       }
     } catch (error) {
       console.error('インポートに失敗しました:', error);
@@ -226,15 +236,13 @@ const SpreadsheetImport: React.FC = () => {
         </Button>
         
         <div className="mt-4 text-sm text-gray-500 bg-gray-50 p-3 rounded">
-          <h4 className="font-medium">デプロイ手順:</h4>
-          <ol className="list-decimal ml-5 space-y-1">
-            <li>スプレッドシートを開く</li>
-            <li>メニューから「拡張機能」→「Apps Script」を選択</li>
-            <li>スプレッドシートのデータを返すスクリプトを作成</li>
-            <li>「デプロイ」→「新しいデプロイ」→「ウェブアプリ」を選択</li>
-            <li>「アクセスできるユーザー」で適切な設定を選択</li>
-            <li>生成されたURLをコードの <code>GAS_API_URL</code> に設定</li>
-          </ol>
+          <h4 className="font-medium">Google Apps Scriptの情報:</h4>
+          <p className="mt-1 break-all">
+            スクリプトID: <code>AKfycbxYWbWl4nzLvRB0rz4NBs9IJINIpNnWktAq8PnR_TYIa8fDi46Cq5QQZSHpPCAhY-6e</code>
+          </p>
+          <p className="mt-1">
+            エラーが発生する場合は、APIキーが正しく設定されているか確認してください。
+          </p>
         </div>
       </CardContent>
     </Card>
