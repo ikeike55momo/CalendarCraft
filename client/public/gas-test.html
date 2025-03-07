@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>GAS API テスト</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    button { padding: 8px 16px; margin-top: 10px; }
+    pre { background-color: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>Google Apps Script APIテスト</h1>
+  
+  <div>
+    <h2>シート名を取得</h2>
+    <div>
+      <label for="apiKey">APIキー:</label>
+      <input type="text" id="apiKey" value="app-schedule-ririaru">
+    </div>
+    <div>
+      <label for="gasUrl">GAS URL:</label>
+      <input type="text" id="gasUrl" value="https://script.google.com/macros/s/AKfycbxsva5mdKNLFYosW-1cgt6LVItPEs-gGcIB-21YS2zZIhaxac17M3EZPj0oqvKq2-ly/exec" style="width: 100%;">
+    </div>
+    <button onclick="getSheetNames()">シート名を取得</button>
+  </div>
+  
+  <h3>結果:</h3>
+  <pre id="result">ここに結果が表示されます</pre>
+
+  <script>
+    async function getSheetNames() {
+      const resultElement = document.getElementById('result');
+      const apiKey = document.getElementById('apiKey').value;
+      const gasUrl = document.getElementById('gasUrl').value;
+      
+      resultElement.textContent = "リクエスト中...";
+      
+      try {
+        const timestamp = new Date().getTime();
+        const url = `${gasUrl}?apiKey=${apiKey}&action=getSheetNames&_=${timestamp}`;
+        
+        resultElement.textContent += `\nリクエストURL: ${url}`;
+        
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          },
+          mode: 'cors'
+        });
+        
+        const contentType = response.headers.get('content-type');
+        resultElement.textContent += `\nContent-Type: ${contentType}`;
+        
+        const data = await response.json();
+        resultElement.textContent = "結果:\n" + JSON.stringify(data, null, 2);
+      } catch (error) {
+        resultElement.textContent = "エラー発生:\n" + error.message;
+        console.error('エラー:', error);
+      }
+    }
+  </script>
+</body>
+</html> 
