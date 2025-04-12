@@ -1,0 +1,154 @@
+{
+  // プロジェクト基本情報
+  "project": {
+    "name": "Wado Team Scheduler",
+    "description": "チームの出勤管理・スケジュール管理を行うWebアプリ",
+    "version": "1.0.0"
+  },
+
+  // 使用技術スタック
+  "techStack": {
+    "language": "TypeScript",
+    "frontendFramework": "React", 
+    "styling": "Tailwind CSS",
+    "backend": "Node.js or serverless functions (Netlify)",
+    "database": "Supabase (PostgreSQL)",
+    "auth": "NextAuth"
+  },
+
+  // カスタム生成ルール例
+  "generationRules": {
+    "preferFunctionalComponents": true,
+    "useReactHooks": true,
+    "useTypeScriptStrict": true,
+    "useESLint": true
+  },
+
+  // 必要な主要機能（要件定義書を反映）
+  "features": [
+    {
+      "name": "Calendar",
+      "description": "個人・全体カレンダーを表示し、予定・勤怠・タスクを管理"
+    },
+    {
+      "name": "SpreadsheetImport",
+      "description": "Google Sheets API からのインポート（自動 & 手動ボタン）"
+    },
+    {
+      "name": "GoogleCalendarExport",
+      "description": "個人の予定を Google カレンダーへエクスポート"
+    },
+    {
+      "name": "TaskManagement",
+      "description": "タスク作成・編集、プロジェクト紐付け"
+    },
+    {
+      "name": "ProjectManagement",
+      "description": "プロジェクト作成・メンバー参加管理、タグ検索"
+    },
+    {
+      "name": "AttendanceManagement",
+      "description": "実際の勤怠打刻（出勤/退勤/休憩）などを管理"
+    },
+    {
+      "name": "AdminDashboard",
+      "description": "管理者のみアクセス可能な設定・インポート画面など"
+    }
+  ],
+
+  // データベース設計 (簡易サマリ) 
+  "databaseSchema": {
+    "tables": [
+      {
+        "name": "members",
+        "fields": [
+          "id (UUID, PK)",
+          "google_sub (Text)",
+          "sheet_name (Text)",
+          "name (Text)",
+          "email (Text)",
+          "role (Text: admin/member)",
+          "created_at (Timestamp)",
+          "updated_at (Timestamp)"
+        ]
+      },
+      {
+        "name": "calendar",
+        "fields": [
+          "id (UUID, PK)",
+          "user_id (UUID -> members.id)",
+          "title (Text)",
+          "start_time (Timestamp)",
+          "end_time (Timestamp)",
+          "work_type (Text: '出勤' or 'テレワーク')",
+          "created_at (Timestamp)",
+          "updated_at (Timestamp)"
+        ]
+      },
+      {
+        "name": "attendance",
+        "fields": [
+          "id (UUID, PK)",
+          "user_id (UUID -> members.id)",
+          "date (Date)",
+          "attendance_log (JSONB: 出勤/退勤/休憩情報)",
+          "created_at (Timestamp)",
+          "updated_at (Timestamp)"
+        ]
+      },
+      {
+        "name": "tasks",
+        "fields": [
+          "id (UUID, PK)",
+          "user_id (UUID -> members.id)",
+          "title (Text)",
+          "project_id (UUID -> projects.id)",
+          "tag (Text)",
+          "due_date (Date)",
+          "detail (Text)",
+          "status (Text: 'open' / 'done')",
+          "created_at (Timestamp)",
+          "updated_at (Timestamp)"
+        ]
+      },
+      {
+        "name": "projects",
+        "fields": [
+          "id (UUID, PK)",
+          "name (Text)",
+          "tag (Text)",
+          "detail (Text)",
+          "created_at (Timestamp)",
+          "updated_at (Timestamp)"
+        ]
+      },
+      {
+        "name": "project_members",
+        "fields": [
+          "id (UUID, PK)",
+          "project_id (UUID -> projects.id)",
+          "user_id (UUID -> members.id)",
+          "created_at (Timestamp)",
+          "updated_at (Timestamp)"
+        ]
+      }
+    ]
+  },
+
+  // コーディング規約や制限事項など 
+  "codingConventions": {
+    "naming": {
+      "camelCase": true,        // 変数・関数はキャメルケース
+      "pascalCaseForComponents": true // Reactコンポーネントはパスカルケース
+    },
+    "fileStructure": "groupByFeature", // 機能ごとにディレクトリを分割する方針
+    "testingFramework": "Jest or Vitest"
+  },
+
+  // 自動生成やコード補完時に禁止したいパターン例
+  "disallow": [
+    "varKeyword",
+    "anyTypeWithoutReason",
+    "inlineCSS"
+  ]
+}

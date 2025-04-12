@@ -1,0 +1,151 @@
+---
+description: Apply these rules when creating the project
+globs:
+alwaysApply: true
+---
+## Project Overview
+
+*   **Type:** cursor_project_rules
+*   **Description:** 本システムは、チームメンバー（10名）の出勤管理・スケジュール管理を主目的とするWebアプリケーションです。個人用カレンダーとチーム全体カレンダーの切り替え、出勤・勤怠管理、タスク・プロジェクト管理、Google Sheets APIのインポート、Googleカレンダーへのエクスポートを提供します。
+*   **Primary Goal:** To streamline team scheduling and attendance management for a 10-member team by integrating dual calendar views (personal and team), seamless data synchronization with Google Sheets and Google Calendar, and secure role-based access for both administrators and members.
+
+## Project Structure
+
+### Framework-Specific Routing
+
+*   **Directory Rules:**
+
+    *   Next.js 14 (App Router): Adhere to the `app/[route]/page.tsx` conventions.
+    *   Example 1: "Next.js 14 (App Router)" → `app/[route]/page.tsx` structure ensuring proper segmentation of routes.
+    *   Example 2: "Next.js (Pages Router)" → `pages/[route].tsx` pattern (if applicable, but must not be mixed with App Router projects).
+    *   Example 3: "React Router 6" → Use `src/routes/` with `createBrowserRouter` for route definitions.
+
+### Core Directories
+
+*   **Versioned Structure:**
+
+    *   `app`: Contains framework-specific routing and API routes (e.g., `app/api` for Next.js 14 API routes using Route Handlers).
+    *   `components`: Houses UI components (built with Shadcn UI) and other presentational elements.
+    *   `lib`: Contains utility functions, service integrations, and helper modules.
+    *   Example 1: `app/api` → "Next.js 14 API routes using Route Handlers."
+    *   Example 2: `components` → "UI components designed with Shadcn UI principles."
+
+### Key Files
+
+*   **Stack-Versioned Patterns:**
+
+    *   `app/dashboard/layout.tsx`: Implements Next.js 14 root layout conventions for the dashboard.
+    *   `pages/_app.js`: Used for global customization in Next.js Pages Router projects (not applicable for pure App Router setups).
+
+## Tech Stack Rules
+
+*   **Version Enforcement:**
+
+    *   next@14: Enforce App Router with no usage of `getInitialProps`.
+    *   tailwindcss@latest: Utilize utility-first CSS styling; ensure proper configuration in `tailwind.config.js`.
+    *   typescript@latest: Enable strict type-checking and maintain a well-organized types directory.
+    *   neon@latest: Follow best practices for PostgreSQL connection pooling and schema management.
+    *   shadcn-ui@latest: Leverage pre-built UI primitives for design consistency.
+    *   nextauth.js@latest: Secure authentication flows using environment-based secret management.
+    *   google-oauth: Use secure practices with validated redirect URIs and proper OAuth scopes.
+    *   vercel@latest: Optimize deployments using serverless functions and Vercel Analytics.
+    *   openai@latest: Implement robust error handling and manage API rate limits carefully.
+
+## PRD Compliance
+
+*   **Non-Negotiable:**
+
+    *   "Only two roles will be available: 'admin' and 'member'." – Enforce strict role-based access control.
+    *   "All events will be manually created; recurring events are not supported." – Ensure that event creation is strictly manual.
+    *   "Use local time settings for calendar displays." – The calendar must default to the user's local time.
+    *   "Primary view options include a personal calendar and a team calendar." – Maintain a clear separation of views.
+
+## App Flow Integration
+
+*   **Stack-Aligned Flow:**
+
+    *   Example: "Next.js 14 Auth Flow" → `app/auth/login/page.tsx` utilizes server actions for authentication.
+    *   The dashboard directs authenticated users to either a personal or team calendar view, based on their role.
+
+## Best Practices
+
+*   **Next js**
+
+    *   Follow App Router conventions and keep routes modular.
+    *   Utilize Server Components where applicable to enhance performance.
+    *   Avoid mixing Pages Router with App Router to maintain consistency.
+
+*   **Tailwind CSS**
+
+    *   Use utility classes to ensure consistent styling across components.
+    *   Regularly update the `tailwind.config.js` to incorporate theme customizations.
+    *   Minimize the use of custom CSS to uphold the utility-first approach.
+
+*   **Typescript**
+
+    *   Enable strict mode to catch errors early in the development process.
+    *   Employ interfaces and type definitions consistently across the codebase.
+    *   Maintain an organized directory for types to support scalability.
+
+*   **Neon (PostgreSQL)**
+
+    *   Use proper connection pooling to manage database performance.
+    *   Enforce schema validations and regular migrations.
+    *   Secure database credentials using environment variables.
+
+*   **Shadcn UI**
+
+    *   Leverage pre-built UI components for uniform design.
+    *   Customize only when necessary to retain consistency.
+    *   Keep customizations modular and well-documented.
+
+*   **NextAuth.js**
+
+    *   Secure secret keys by storing them in environment variables.
+    *   Implement role-based access control robustly.
+    *   Regularly update dependencies to incorporate security patches.
+
+*   **Google OAuth**
+
+    *   Ensure secure redirection and callback URL management.
+    *   Maintain updated OAuth scopes and regularly review security settings.
+    *   Monitor authentication flows for potential unauthorized access attempts.
+
+*   **Vercel**
+
+    *   Leverage serverless functions to optimize backend performance.
+    *   Deploy frequently to catch and resolve integration issues early.
+    *   Use Vercel Analytics to monitor performance and user interactions.
+
+*   **Open AI**
+
+    *   Implement error handling to manage API response issues.
+    *   Monitor and manage rate limits to avoid service disruptions.
+    *   Secure API keys through environment configurations.
+
+## Rules
+
+*   Derive folder/file patterns directly from the tech stack's documented versions.
+*   If Next.js 14 App Router: Enforce use of the `app/` directory with nested route folders.
+*   If using the Pages Router: Utilize `pages/*.tsx` flat structure consistently.
+*   Mirror this logical structure for other frameworks (e.g., React Router, SvelteKit) as applicable.
+*   Never mix version patterns (e.g., do not include a `pages/` directory in an App Router project).
+
+## Rules Metrics
+
+Before starting project development, create a metrics file in the root of the project called
+
+`cursor_metrics.md`.
+
+### Instructions:
+
+*   Each time a cursor rule is used as context, update `cursor_metrics.md`.
+*   Use the following format for `cursor_metrics.md`:
+
+# Rules Metrics
+
+## Usage
+
+The number of times the rules is used as context
+
+`* rule-name.mdc: 5 * another-rule.mdc: 2 * ...other rules`

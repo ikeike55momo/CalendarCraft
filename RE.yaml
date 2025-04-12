@@ -1,0 +1,155 @@
+document:
+  title: "追加の定義書（環境変更に伴う移行ドキュメント）"
+  version: "1.0"
+  sections:
+    - number: 1
+      heading: "背景・目的"
+      content: |
+        これまで **Supabase Auth + Netlify + Supabase (PostgreSQL)** を中心とした環境で開発を進めていたが、**Next.js + Vercel + Neon + NextAuth.js** へ環境を切り替えることになった。
+        本ドキュメントでは、既に実装済みの機能とまだ未実装の機能、新しい環境への移行に伴い変更が必要な箇所を明確化し、cursorAI に続きの開発をスムーズに引き継ぐことを目的とする。
+    - number: 2
+      heading: "新しい環境"
+      content: |
+        1. フロントエンド & サーバーレスAPI: Next.js (Vercel 上でデプロイ)
+        2. データベース: Neon (PostgreSQL)
+        3. 認証: NextAuth.js (Google OAuth)
+        4. ホスティング: Vercel
+           - 予定の自動インポート（Cron）は Vercel の Cron Jobs を利用
+        5. その他:
+           - Google Sheets API 連携（スプレッドシートインポート）
+           - Google Calendar API 連携（カレンダーエクスポート）
+    - number: 3
+      heading: "現在実装済みの機能・画面"
+      content: |
+        3.1 カレンダー周り
+         - 個人用 / 全体用カレンダー切り替え表示
+           - UI 側のタブや切り替えボタンなどを実装済み。
+           - 予定・勤怠・タスクをカレンダー上に表示する機能は仮データベースとの連携で動作確認済み。
+         - 日付セルクリックでのモーダル表示
+           - 予定追加フォーム、タスク追加フォーム、勤怠打刻フォームなどの画面遷移 or モーダル切り替えを実装済み。
+           - 入力項目は仮データ構造に保存してテスト実装。
+
+        3.2 タスク管理
+         - タスク一覧画面
+           - タスクのステータス(open / done)でフィルタ表示可能。
+           - タスク追加フォーム（タスク名、担当者、期限など）の画面レイアウトは実装済み。
+           - バックエンド連携は一部のみ（DB 接続がまだ）。
+
+        3.3 プロジェクト管理
+         - プロジェクト一覧画面 / 詳細画面
+           - プロジェクト新規作成（名称・タグ・説明）UIを実装済み。
+           - 参加メンバーを登録するUIはプロトタイプ状態（DB 連携は未実装）。
+
+        3.4 管理画面
+         - 管理者のみアクセス可能なルーティングを準備。
+         - スプレッドシートインポートの手動ボタン:
+           - UI ボタンの配置とクリックイベントハンドラは実装済み（Netlify Functions・Supabase 前提）。
+
+        3.5 認証まわり
+         - Supabase Auth + Google OAuth でのログインを仮実装。
+         - ユーザープロファイル管理や role(admin / member) の取得は Supabase テーブルを使う想定で構築済み。
+
+        3.6 Google カレンダーエクスポート
+         - フロントエンド側の連携ボタンと、Google カレンダー API を呼び出す Netlify Functions（仮実装）がある。
+         - 予定データ取得は Supabase 連携と紐づける予定だったが、完了していない。
+    - number: 4
+      heading: "新しい環境に合わせて変更が必要なポイント"
+      content: |
+        1. 認証周り: Supabase Auth → NextAuth.js
+           - 現在は Supabase Auth 経由の Google OAuth ログインを利用中。
+           - NextAuth.js に切り替えるため、/api/auth/[...nextauth].ts の作成や Google クライアント情報の再設定などが必要。
+           - ユーザー情報の取得ロジック（role や email など）を修正。
+
+        2. DB 接続: Supabase (PostgreSQL) → Neon (PostgreSQL)
+           - 接続エンドポイントや認証キーを Neon 用に変更。
+           - Supabase 用ライブラリを除去し、Prisma など他の手法でクエリを行うか検討。
+
+        3. ホスティング周り: Netlify → Vercel
+           - 自動デプロイ / CI 設定を Netlify から Vercel に変更。
+           - 定期実行（Cron）を Netlify の Scheduled Functions から Vercel Cron Jobs へ移行。
+           - API エンドポイントを Next.js API Routes に合わせて再構成。
+
+        4. スプレッドシートインポートの仕組み
+           - Netlify Functions で実装していたロジックを Vercel Cron + Next.js API Routes に置き換え。
+           - Google Sheets API 用の認証情報やシートID の環境変数を Vercel に設定し直し。
+
+        5. Google カレンダーエクスポート
+           - Netlify Functions 前提だった部分を Next.js API Routes に移植。
+           - 環境変数 (Google API Credentials) を Vercel の管理画面に設定し直し。
+           - アクセストークン管理やエラー処理、再エクスポート時の重複対策なども再実装。
+    - number: 5
+      heading: "未実装・要追加実装の箇所"
+      content: |
+        1. DB スキーマおよび各機能の CRUD 実装
+           - 現在は仮テーブルで UI テストしている状態。
+           - Neon で本番用テーブル設計・実装が必要。
+
+        2. 認証と権限管理
+           - NextAuth 導入後、role: admin / member をどう判別するか未定。
+           - JWT カスタムクレーム or DB から取得するフローの整備が必要。
+
+        3. スプレッドシートインポート（定期実行）
+           - Vercel Cron で毎日0時に呼び出すエンドポイント未実装。
+           - Google Sheets API 認証情報やシートID 再設定が必要。
+
+        4. Google カレンダーエクスポート
+           - UIボタンのみ仮実装、API連携や認証トークン管理は未完成。
+           - エラーハンドリングや重複対策など未対応。
+
+        5. 管理画面の詳細機能
+           - メンバー一覧・追加・編集は UI だけ、DB 書き込みはまだ。
+           - プロジェクト管理画面も UI とモックデータのみで、正式DB 未連携。
+
+        6. テスト / バリデーション
+           - E2Eテストや単体テストは未着手。
+           - 日付や勤怠打刻のバリデーションも不十分。
+    - number: 6
+      heading: "今後の作業優先度（例）"
+      content: |
+        1. NextAuth.js への移行
+           - 認証設定・Google OAuth のクレデンシャル設定・role 管理などの仕組みを整備。
+        2. Neon への DB 接続・テーブル設計確定
+           - 基本テーブル（ユーザー / カレンダーイベント / タスク / プロジェクトなど）を確定・マイグレーション。
+        3. Cron ジョブ（スプレッドシートインポート）
+           - 毎日0時に Vercel Cron → API Routes → Sheets API → DB 反映。
+           - 手動ボタンも Next.js API Routes に接続。
+        4. Google カレンダーエクスポート
+           - ユーザー単位でカレンダーを作成/更新。認証トークン管理の検討。
+        5. 管理画面の実装仕上げ
+           - メンバー管理・プロジェクト管理の CRUD と権限制御実装。
+        6. タスク管理・勤怠管理を DB と連携
+           - フロントUI ⇔ API ⇔ Neon への書き込み/読み込み。
+        7. テスト整備 / バリデーション / 仕上げ
+           - 単体テスト・E2Eテストの導入。勤怠やスケジュール入力のバリデーション強化。
+    - number: 7
+      heading: "今後の拡張予定（再掲）"
+      content: |
+        - 週報管理機能: プロジェクト単位で週報ページを追加
+        - レスポンシブ対応: スマホやタブレットへの最適化
+        - 通知機能: タスク期限通知、勤怠打刻漏れ通知
+        - カレンダー表示の拡張: 月/週/日表示切り替え、ドラッグ&ドロップ等
+    - number: 8
+      heading: "開発引き継ぎの想定フロー"
+      content: |
+        1. ソースコードのリポジトリ移行
+           - 現行の Netlify/Supabase 向けコードを、Next.js (Vercel) 用のブランチを切って移行開始。
+        2. 認証・DB・ホスティングの設定ファイル修正
+           - .env や Vercel の環境変数設定。
+           - NextAuth.js 用の /api/auth/[...nextauth].ts や next.config.js の調整。
+        3. cursorAI への進捗共有
+           - 本ドキュメントを提示し、ソースコード / UI 状況を説明。
+           - デモ環境やローカル起動手順も合わせて周知。
+        4. 移行作業＆テスト
+           - Vercel 上で実際に動作確認。問題箇所修正＆デプロイテスト。
+        5. 追加開発
+           - 未実装部分（DB 連携 / Cron / Google カレンダーAPIなど）を順次対応。
+    - number: 9
+      heading: "まとめ"
+      content: |
+        このドキュメントは「現在の開発状況」「新しい環境へ移行するための対応」「未実装機能」を整理したもの。
+        認証・DB・ホスティング・API Routesなど大きく変わるポイントを優先的に対応し、cursorAI に次ステップを引き継ぐ。
+        
+        - できている部分: UI・モーダル・タスク管理画面の一部、管理画面雛形
+        - 環境変更で修正必須: 認証（NextAuth.js化）、DB（Neon化）、ホスティング（Vercel化）
+        - まだ未実装: DB CRUD、定期インポート（Vercel Cron）、Google カレンダーエクスポートの本番実装、テストやバリデーション 等
+

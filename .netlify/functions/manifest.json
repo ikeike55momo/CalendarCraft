@@ -1,0 +1,1 @@
+{"functions":[{"bundler":"esbuild","buildData":{"runtimeAPIVersion":1},"mainFile":"/Users/nu/CalendarCraft/dist/functions/index.js","name":"index","priority":10,"runtimeVersion":"nodejs18.x","path":"/Users/nu/CalendarCraft/.netlify/functions/index.zip","runtime":"js"}],"system":{"arch":"arm64","platform":"darwin"},"timestamp":1741817433303,"version":1}
