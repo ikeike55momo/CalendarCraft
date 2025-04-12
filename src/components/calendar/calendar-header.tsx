@@ -37,6 +37,16 @@ export function CalendarHeader({
         </Button>
       </div>
 
+      <motion.h2 
+        key={format(currentMonth, "yyyy-MM")}
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="text-xl font-semibold text-gray-800"
+      >
+        {format(currentMonth, "yyyy年 M月")}
+      </motion.h2>
+
       <div className="flex items-center gap-1 bg-white rounded-lg p-1 border border-gray-100">
         <Button
           variant={view === "personal" ? "default" : "ghost"}

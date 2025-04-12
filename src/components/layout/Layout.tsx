@@ -1,15 +1,15 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { 
-  Calendar, 
-  CheckSquare, 
-  FolderKanban, 
-  Settings, 
+import {
+  Calendar,
+  CheckSquare,
+  FolderKanban,
+  Settings,
   User,
   LogOut,
   Clock,
   Menu,
-  ChevronLeft
+  ChevronLeft,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -141,10 +141,10 @@ export function Layout({ children, isAdmin = false }: LayoutProps) {
               </div>
               {sidebarOpen && <span className="text-xl font-bold">Wado Scheduler</span>}
             </div>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="hidden md:flex" 
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden md:flex"
               onClick={toggleSidebar}
             >
               <ChevronLeft className={`h-5 w-5 transition-transform ${!sidebarOpen ? 'rotate-180' : ''}`} />
@@ -205,9 +205,9 @@ export function Layout({ children, isAdmin = false }: LayoutProps) {
         {/* Header with toggle button */}
         <header className="bg-white/80 backdrop-blur-sm border-b border-blue-100 p-4 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-2">
-            <Button 
-              variant="ghost" 
-              size="icon" 
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={toggleSidebar}
               className="md:hidden"
             >
@@ -218,7 +218,7 @@ export function Layout({ children, isAdmin = false }: LayoutProps) {
             </div>
             <span className="md:hidden text-xl font-bold">Wado</span>
           </div>
-          
+
           {/* Mobile menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -250,4 +250,4 @@ export function Layout({ children, isAdmin = false }: LayoutProps) {
       </div>
     </div>
   );
-} 
+}
